@@ -1,0 +1,246 @@
+---
+title: "I learned Japanese by starting with kanji"
+description: "Seventeen years of Japanese began with a year of kanji, followed by grammar dictionaries, half-understood podcasts, and comedy with captions."
+publishedAt: 2026-07-29
+tags: [japanese, language, learning]
+draft: false
+featured: false
+---
+
+import Callout from "@/components/content/Callout.astro";
+import Mermaid from "@/components/content/Mermaid.astro";
+
+By senior year of high school, I had finished enough credits that large parts
+of my schedule were empty. I decided to use the time to learn another language.
+The target was fluency from the beginning—not a list of travel phrases or
+enough grammar to complete a semester.
+
+The Romance languages I considered shared enough vocabulary and structure with
+English that the early stages looked familiar. Familiarity was precisely what I
+did not want. I wanted a language that would force me to reconstruct basic
+assumptions about how writing and sentences work, so I chose Japanese.
+
+I began with an inaccurate model of what I had chosen. I thought Japanese had
+one alphabet: hiragana.
+
+Japanese uses three writing systems together. Hiragana represents native
+sounds and grammatical endings. Katakana represents the same set of sounds in
+a parallel script, commonly for loanwords, names, and emphasis. Kanji supplies
+characters that carry lexical meaning and often more than one possible
+reading. A single sentence can require all three:
+
+> コンビニで水を買いました。
+
+`コンビニ` (*convenience store*) is written in katakana. `で`, `を`, and the
+ending of `買いました` are hiragana. `水` (*water*) and `買` (*buy*) are kanji.
+Learning only hiragana would let me pronounce part of the sentence while
+leaving much of its meaning inaccessible.
+
+## I paid the kanji cost first
+
+I could postpone kanji and remain dependent on phonetic transcriptions, or I
+could absorb the largest initial cost before it became an excuse. I chose the
+second route and spent roughly a year cramming characters.
+
+My main structure came from James Heisig's
+[*Remembering the Kanji*](https://en.wikipedia.org/wiki/Remembering_the_Kanji).
+The first volume does not teach characters in newspaper frequency or school
+grade order. It introduces reusable visual components, assigns them keywords,
+and orders the characters so that earlier components can support later ones.
+It also separates writing and keyword recall from Japanese readings. That made
+the first year lopsided: I could recognize the structure of many characters
+before I knew how to say them.
+
+The routine repeated the same operations:
+
+1. learn a component and a concrete keyword;
+2. combine known components into a new character;
+3. attach the combination to a short visual story;
+4. recall the written character from the keyword;
+5. review failures until the path from keyword to form held.
+
+The smallest combinations made the method easy to see:
+
+| Form | Working image | Meaning |
+|---|---|---|
+| `木` | one tree | tree |
+| `林` | trees beside one another | woods |
+| `森` | trees accumulating above and below | forest |
+
+The point was not that every character behaves like a literal picture
+equation. Many do not. The visible pieces gave me addresses at which memory
+could store them.
+
+Some components also create families that remain recognizable even when the
+character becomes unfamiliar:
+
+| Component | Characters | Connection |
+|---|---|---|
+| `金` | `銀` silver, `銅` copper, `鉄` iron | metals and metallic materials |
+| `魚` | `鮭` salmon, `鯛` sea bream, `鯨` whale | fish and sea animals |
+| `木` | `板` board, `枝` branch, `植` plant | wood, trees, and things made or done with them |
+
+These components are clues rather than definitions. `鯨`, for example,
+contains the fish component even though a whale is a mammal. The character
+records a writing tradition, not a biological taxonomy. A clue can still
+reduce an unfamiliar square of strokes into parts I already know.
+
+<Callout label="What the first year established">
+  Heisig gave me a visual retrieval system, not spoken Japanese. I still had to
+  learn readings, vocabulary, and usage, but new words could attach to
+  characters I no longer treated as undifferentiated marks.
+</Callout>
+
+Front-loading kanji changed every later resource. A dictionary entry could
+connect a sound to a form I recognized. A caption could expose the word inside
+fast speech. A grammar example could show where a stem ended and an inflection
+began. The year of isolated character study began returning time only after I
+moved into sentences.
+
+## Grammar turned characters into sentences
+
+After kanji, I worked through Seiichi Makino and Michio Tsutsui's
+[*A Dictionary of Japanese Grammar* series](https://store.jtpublishing.co.jp/en/pages/n-bunpoujiten):
+
+- [Basic](https://store.jtpublishing.co.jp/en/products/1909), for core sentence
+  structures, particles, conjugation, topic, and omission;
+- [Intermediate](https://store.jtpublishing.co.jp/en/products/775), for
+  compound patterns, discourse, and distinctions between similar expressions;
+- [Advanced](https://store.jtpublishing.co.jp/en/products/1295), for the
+  constructions and register differences that become visible in longer speech
+  and writing.
+
+The books are dictionaries rather than a single course. Each entry defines a
+construction, shows what can attach to it, gives example sentences, and
+separates it from nearby constructions. That format suited self-study because
+I could follow one question into another instead of waiting for a curriculum
+to introduce it.
+
+Japanese verbs also gave me a small number of transformation systems that
+could be reused across a large vocabulary. Once I knew that `食べる` belongs to
+the *ichidan* pattern, its stem stayed fixed while the ending changed:
+
+| Function | Form |
+|---|---|
+| non-past | `食べる` |
+| negative | `食べない` |
+| past | `食べた` |
+| connective / request base | `食べて` |
+
+The *godan* pattern moves the final kana through a fixed set of rows:
+
+| Function | `書く` (*write*) |
+|---|---|
+| non-past | `書く` |
+| negative | `書かない` |
+| past | `書いた` |
+| connective / request base | `書いて` |
+
+`する` (*do*) and `来る` (*come*) carry the two major irregular paradigms:
+
+| Verb | Negative | Past | て-form |
+|---|---|---|---|
+| `する` | `しない` | `した` | `して` |
+| `来る` | `来ない` | `来た` | `来て` |
+
+There are smaller exceptions—`行く` has the て-form `行って`, and a few
+honorific verbs contract in their own ways—but they sit around regular systems
+rather than replacing them. Because `する` and `来る` occur constantly, their
+irregular forms also receive enough repetition to become automatic.
+
+Particles made sentence roles visible without requiring English word order.
+In this sentence, `は` marks the topic, `と` marks a companion, and `を` marks
+the object:
+
+> 私は昨日、友達と寿司を食べた。  
+> *As for me, yesterday, with a friend, sushi, ate.*
+
+The time, topic, and companion can move when emphasis or context changes.
+Their particles continue to identify their roles, while the verb normally
+anchors the end of the clause. The order is flexible, not arbitrary.
+
+English changes its machinery when a statement becomes a question:
+
+> You eat fish.  
+> Do you eat fish?
+
+The auxiliary `do` appears before the subject. Japanese can preserve the core
+order and add a question marker:
+
+> 魚を食べます。  
+> 魚を食べますか。
+
+The second sentence appends `か`; it does not invert the subject and verb. In
+casual speech, intonation and context can carry the same job without `か`.
+Once the particle and conjugation systems were familiar, assembling a
+grammatical sentence required fewer decisions about position than English had
+led me to expect.
+
+## I listened before I could follow
+
+Knowing how a sentence works did not make native speech arrive at textbook
+speed. I started listening to podcasts while understanding less than half of
+what was said. A minute of speech might yield one noun, a verb ending, and a
+phrase I had heard before. Those fragments were enough to keep a foothold in
+the audio.
+
+Waiting for complete comprehension would have delayed the listening practice
+needed to produce comprehension. Repeated exposure taught me where one phrase
+ended, which sounds disappeared in casual speech, and which expressions people
+used to buy time or change direction. The unknown parts did not need to become
+known in a single pass.
+
+For television, I chose programs I would have watched in English. That usually
+meant comedy. Interest supplied repetition: recurring performers, familiar
+formats, physical reactions, and running jokes made the next line easier to
+predict than disconnected study dialogue.
+
+Japanese comedy programs also use abundant on-screen text. Captions repeat a
+punchline, label a reaction, or emphasize the word that controls the joke.
+Because I had already studied kanji, the screen could resolve audio that was
+too fast for my ear. I would see a known character, connect it to the sound
+that had just passed, and recognize the same word more quickly the next time.
+
+This was less an act of pretending than a choice about the threshold for
+participation. I did not require every sentence to be fully understood before
+letting Japanese occupy the same parts of the day that English already did.
+
+## Each skill increased the return on the others
+
+The parts did not improve independently. Kanji made captions and written
+examples legible. Grammar divided those examples into reusable structures.
+Pronunciation and repeated listening made the structures detectable in speech.
+Native material then supplied vocabulary and repetitions for all three.
+
+<Mermaid
+  title="The learning loop"
+  description="Character knowledge makes written Japanese usable; grammar connects forms; listening connects those forms to speech. Each pass makes more native material comprehensible, which supplies the next pass."
+  source={`flowchart LR
+    K["Kanji<br/>recognize forms"] --> R["Captions, examples,<br/>and dictionary entries"]
+    G["Grammar<br/>predict structure"] --> R
+    R --> V["Vocabulary in context"]
+    V --> L["Podcasts and television<br/>become more legible"]
+    P["Pronunciation<br/>connect sound to form"] --> L
+    L --> E["More phrases recognized<br/>on the next pass"]
+    E --> V
+    E --> G
+    E --> P
+    V --> K`}/>
+
+That loop explains why language learning can feel flat for months and then
+accelerate. Ten new characters do little by themselves. Ten characters that
+unlock a caption, reinforce a spoken word, and recur inside a grammar example
+generate several kinds of practice from the same encounter.
+
+It also changed how I approach other self-taught subjects. I look for the
+bottleneck that makes later material inaccessible and pay that cost early. I
+begin using the real medium before my understanding is complete. I choose
+material I would return to without an obligation to study. Most importantly, I
+treat partial recognition as a mechanism for accumulating context, not as
+evidence that I should wait.
+
+I began Japanese seventeen years ago because I had spare time and wanted a
+language far enough from English to remain unfamiliar. Fluency was the stated
+goal. The method that survived was more specific: learn the writing system
+that makes input visible, learn the rules that connect it, then spend enough
+time with incomplete understanding for recognition to compound.
