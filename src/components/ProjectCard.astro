@@ -1,0 +1,164 @@
+---
+import type { Project } from "@/data/projects";
+
+const { project, index } = Astro.props as { project: Project; index: number };
+---
+
+<article class="project-card" data-accent={project.accent}>
+  <div class="project-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</div>
+  <div class="project-content">
+    <p class="project-question">{project.question}</p>
+    <h3>{project.name}</h3>
+    <p class="project-summary">{project.summary}</p>
+    <dl>
+      <div>
+        <dt>Mechanism</dt>
+        <dd>{project.mechanism}</dd>
+      </div>
+      <div>
+        <dt>Boundary</dt>
+        <dd>{project.boundary}</dd>
+      </div>
+    </dl>
+    <div class="project-footer">
+      <ul aria-label="Technologies">
+        {project.technologies.map((technology) => <li>{technology}</li>)}
+      </ul>
+      <div class="project-links">
+        <a href={project.repository}>Repository ↗</a>
+        {project.documentation && <a href={project.documentation}>Docs ↗</a>}
+      </div>
+    </div>
+  </div>
+</article>
+
+<style>
+  .project-card {
+    display: grid;
+    grid-template-columns: 4rem 1fr;
+    border-top: 1px solid var(--border);
+  }
+
+  .project-index {
+    padding-top: 1.65rem;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+  }
+
+  .project-content {
+    padding: 1.55rem 0 2.4rem;
+  }
+
+  .project-question {
+    margin: 0;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  h3 {
+    margin: 0.55rem 0 0;
+    font-family: var(--serif);
+    font-size: clamp(2rem, 5vw, 3.6rem);
+    font-weight: 400;
+    letter-spacing: -0.045em;
+    line-height: 1;
+  }
+
+  .project-summary {
+    max-width: 45rem;
+    margin: 0.9rem 0 0;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: clamp(1.04rem, 2vw, 1.25rem);
+    line-height: 1.5;
+  }
+
+  dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem 2.2rem;
+    margin: 1.8rem 0 0;
+  }
+
+  dl div {
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+  }
+
+  dt {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  dd {
+    margin: 0.5rem 0 0;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+
+  .project-footer {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-top: 1.8rem;
+  }
+
+  ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+  }
+
+  li + li::before {
+    margin-right: 0.45rem;
+    content: "·";
+  }
+
+  .project-links {
+    display: flex;
+    gap: 1rem;
+    flex: 0 0 auto;
+  }
+
+  .project-links a {
+    color: var(--accent);
+    font-size: 0.72rem;
+    font-weight: 650;
+    text-decoration: none;
+  }
+
+  @media (max-width: 640px) {
+    .project-card {
+      grid-template-columns: 2rem 1fr;
+    }
+
+    dl {
+      grid-template-columns: 1fr;
+    }
+
+    .project-footer {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
+</style>

@@ -1,0 +1,160 @@
+---
+title: "A machine-checked map is not a solution"
+description: "What an honest formal map contributes to an open mathematical problem—and why preserving the red nodes is part of the result."
+publishedAt: 2026-07-24
+tags: [formal-methods, mathematics, verification]
+draft: false
+featured: false
+---
+
+import Callout from "@/components/content/Callout.astro";
+import CodeGroup from "@/components/content/CodeGroup.astro";
+import Mermaid from "@/components/content/Mermaid.astro";
+
+There is a dangerous ambiguity in the phrase “formalizing an open problem.” It
+can mean precisely stating the problem in a proof assistant. It can mean
+building useful mathematical substrate around it. Or, heard carelessly, it can
+sound like the problem has been solved.
+
+The [Navier–Stokes proof map](https://github.com/bordumb/navier_stokes) is
+explicit about the distinction:
+
+> It is a Lean 4 and Mathlib project pointed at the Clay existence and
+> smoothness problem—not to solve it, but to build a machine-checked map of what
+> a proof or disproof would require.
+
+The map is the deliverable.
+
+## State the root without weakening it
+
+For velocity $u$, pressure $p$, viscosity $\nu > 0$, and divergence-free
+initial data $u_0$, the incompressible equations are:
+
+$$
+\frac{\partial u}{\partial t}
++ (u \cdot \nabla)u
+= \nu \Delta u - \nabla p + f,
+\qquad
+\nabla \cdot u = 0,
+\qquad
+u(\cdot,0)=u_0.
+$$
+
+A formal map begins by pinning the apex to the intended Clay statements. It
+must not quietly replace the root with a theorem that merely has a similar
+name—or a more convenient proposition.
+
+In the repository, probes elaborate a statement pin and inspect the theorem's
+axioms. A proof containing `sorry` exposes `sorryAx` and remains RED.
+
+<CodeGroup
+  label="A theorem and its gate"
+  examples={[
+    {
+      language: "lean",
+      label: "Lean",
+      filename: "checks/blw-1.check.lean",
+      code: String.raw`
+example : MillenniumNS_BoundedDomain.FeffermanD :=
+  NavierStokes.Blowup.fefferman_D
+
+#print axioms NavierStokes.Blowup.fefferman_D`,
+    },
+    {
+      language: "bash",
+      label: "Probe",
+      filename: "probes/blw-1.sh",
+      code: String.raw`
+lake env lean checks/blw-1.check.lean > "$output"
+
+if grep -q "sorryAx" "$output"; then
+  echo "RED: proof depends on an unproved axiom"
+  exit 1
+fi`,
+    },
+    {
+      language: "yaml",
+      label: "Ledger",
+      filename: "gaps.yaml",
+      code: String.raw`
+- id: BLW-1
+  title: "Fefferman (D): periodic breakdown with forcing"
+  status: open
+  probe: probes/blw-1.sh
+  observed: "RED: proof depends on sorryAx"`,
+    },
+  ]}
+/>
+
+These excerpts are shortened to show the relationship among formal statement,
+measurement, and recorded observation. The production probes also enforce
+pinned root integrity and retained traps.
+
+## Red is information
+
+An open node is not a failed project state. It is a coordinate on the map.
+
+<Mermaid
+  title="A deliberately incomplete proof map"
+  description="Model results can be closed and useful while the Clay-side apex and bridge claims remain visibly open."
+  source={`flowchart BT
+    M1[GREEN: Hilbert transform modes] --> M2[GREEN: Tricomi identity]
+    M2 --> M3[GREEN: explicit CLM solution]
+    M3 --> M5[GREEN: 1D model blowup]
+    M5 -. analogy, not implication .-> B[RED: 3D bridge]
+    B --> C[RED: Clay breakdown apex]
+    R[RED: regularity route] --> A[RED: Clay regularity apex]`}
+/>
+
+The proved 1D model results are genuine, kernel-checked mathematics. They
+validate Fourier bridges, identities, blowup mechanisms, and the checking
+harness. They do not become progress on the 3D Clay apex merely because they
+live in the same repository.
+
+<Callout label="Status discipline">
+  The exact counts will change; the distinction will not. Model nodes may close
+  under kernel-clean probes while Clay-side nodes remain explicitly open. The
+  former says nothing by itself about the latter.
+</Callout>
+
+## Why the traps matter
+
+The apex probes retain several classes of counterexample:
+
+- a genuine statement “proved” with `sorry`, which must remain RED;
+- a mangled proposition with a convenient trivial proof, which the statement
+  pin must reject;
+- a tampered vendored root, which the integrity check must catch before
+  elaboration.
+
+This is more than test coverage. Each trap attacks a different way a formal
+project can look complete while changing the meaning of completion.
+
+If $P$ is the intended proposition, a trustworthy green verdict must establish
+more than the existence of some term called `fefferman_D`:
+
+$$
+\operatorname{Green}(d)
+\Rightarrow
+\bigl(\operatorname{type}(d)=P\bigr)
+\land
+\bigl(\operatorname{axioms}(d)\subseteq W\bigr)
+\land
+\operatorname{rootIntegrity}.
+$$
+
+$W$ is the explicit axiom whitelist. The proposition, proof dependencies, and
+root must all stay fixed.
+
+## Formalization as intellectual honesty
+
+A dependency map is useful because difficult proofs fail locally. One can see
+which bridge is missing, which estimate is too weak, which formal vocabulary
+does not yet exist, and which apparent route is blocked by a known no-go
+result.
+
+But the map has another value. It resists a very human pressure: the desire to
+turn proximity, effort, or sophistication into completion.
+
+A machine-checked red node says, with unusual calm: *not yet*. Preserving that
+sentence may be the most important theorem the system knows.

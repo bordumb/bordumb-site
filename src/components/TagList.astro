@@ -1,0 +1,42 @@
+---
+import { tagLabel } from "@/utils/content";
+
+const { tags, linked = true } = Astro.props;
+---
+
+<ul class="tag-list" aria-label="Tags">
+  {tags.map((tag: string) => (
+    <li>
+      {linked ? <a href={`/blog/tags/${tag}`}>{tagLabel(tag)}</a> : <span>{tagLabel(tag)}</span>}
+    </li>
+  ))}
+</ul>
+
+<style>
+  .tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.42rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tag-list a,
+  .tag-list span {
+    display: inline-flex;
+    padding: 0.28rem 0.52rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.02em;
+    text-decoration: none;
+  }
+
+  .tag-list a:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+</style>

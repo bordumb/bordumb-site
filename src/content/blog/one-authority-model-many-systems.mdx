@@ -1,0 +1,337 @@
+---
+title: "One authority model, many identity and transport systems"
+description: "How auths-proof admits KERI, raw keys, P-256, Iroh, HTTPS, and other systems without letting them redefine permission."
+publishedAt: 2026-07-25
+tags: [authority, identity, cryptography, architecture]
+draft: false
+featured: false
+---
+
+import Mermaid from "@/components/content/Mermaid.astro";
+
+An authorization verifier needs answers from several systems, but those systems
+do not answer the same question.
+
+- KERI describes controller state and key rotation.
+- A raw-key method derives a principal directly from key material.
+- Ed25519 and P-256 verify signatures.
+- SHA-256 commits bytes to fixed-size identifiers and digests.
+- Iroh, HTTPS, TCP, Unix sockets, files, and in-memory channels move a proof
+  between machines.
+
+Calling all of them “authentication” hides their different outputs.
+`auths-proof` gives each category a separate interface, then converts the
+accepted results into one authority decision.
+
+## Agnostic does not mean unrestricted
+
+The kernel does not hard-code one identity or transport system. It also does
+not accept any implementation that happens to satisfy a Rust trait.
+
+An implementation is usable only when:
+
+1. it has an exact registry identifier;
+2. the verifier includes it in an immutable registry;
+3. the trusted context accepts that identifier;
+4. the trusted context’s configuration commitment equals the executable
+   registry’s configuration commitment;
+5. the implementation stays within its declared work bound.
+
+An unknown principal method or signature suite produces `Indeterminate`.
+Malformed or contradictory supplied evidence produces `Denied`. Neither result
+falls back to another method.
+
+<Mermaid
+  title="Different systems converge on one authority model"
+  description="Principal methods establish control facts, signature suites verify signed bytes, and transports deliver the exchange. None of them defines the capability-resource permission checked by the authority kernel."
+  source={`flowchart LR
+    subgraph I["Principal methods"]
+      RK["raw key"]
+      DK["did:key"]
+      K["KERI"]
+      DW["bundled did:web"]
+      W["WebAuthn"]
+      X["SPIFFE / X.509"]
+    end
+
+    subgraph S["Signature suites"]
+      E["Ed25519"]
+      P["P-256 / SHA-256"]
+    end
+
+    subgraph T["Proof exchange"]
+      IR["Iroh"]
+      H["HTTPS"]
+      TCP["TLS / TCP"]
+      U["Unix / file / memory"]
+    end
+
+    RK --> C["ControlEvidence"]
+    DK --> C
+    K --> C
+    DW --> C
+    W --> C
+    X --> C
+    E --> V["signed statement valid"]
+    P --> V
+    C --> A["authority kernel"]
+    V --> A
+    IR --> Q["ProofBundle + CanonicalAction"]
+    H --> Q
+    TCP --> Q
+    U --> Q
+    Q --> A
+    A --> M["Permission<br/>capability + resource"]
+    M --> O["VerifiedAction"]`}
+/>
+
+## Principal methods establish control facts
+
+Every principal adapter implements the same effect-free port:
+
+```rust
+pub trait PrincipalMethod {
+    fn id(&self) -> &PrincipalMethodId;
+
+    fn configuration_id(&self) -> AdapterConfigurationId;
+
+    fn maximum_work_units(&self) -> u64;
+
+    fn verify_control(
+        &self,
+        input: PrincipalControlInput<'_>,
+    ) -> Result<ControlEvidence, PrincipalControlError>;
+}
+```
+
+The input contains the exact principal, verification method, signature suite,
+control purpose, signing preimage, asserted signing time, bound evidence,
+and verifier-supplied evaluation time.
+
+The output contains:
+
+```rust
+pub struct ControlEvidence {
+    verification_key: Vec<u8>,
+    claims: Vec<AssuranceClaim>,
+    consumed_evidence: Vec<EvidenceId>,
+    adapter: AdapterId,
+    adapter_version: u16,
+    work_units: u64,
+    signature_message: Option<Vec<u8>>,
+}
+```
+
+This is the common boundary. A principal method does not grant a permission. It
+establishes which key should verify the statement, which assurance claims the
+evidence supports, and exactly which evidence objects it consumed.
+
+### Raw keys bind identity directly to key material
+
+`RawKeyMethod` selects one evidence object, decodes its bounded descriptor, and
+checks three equalities:
+
+```rust
+if descriptor.suite() != input.signature_suite.as_str() {
+    return Err(PrincipalControlError::SignatureSuiteMismatch);
+}
+
+let principal = descriptor
+    .principal()
+    .map_err(|_| PrincipalControlError::InvalidEvidence)?;
+
+if &principal != input.principal {
+    return Err(PrincipalControlError::PrincipalMethodMismatch);
+}
+
+if input.verification_method.as_str() != principal.as_str() {
+    return Err(PrincipalControlError::VerificationMethodMismatch);
+}
+```
+
+If those checks pass, it returns the public key plus
+`self-certifying-identifier` and `offline-verifiable` assurance claims.
+
+### KERI replays controller history
+
+`DidKeriMethod` receives a bounded KERI event log as evidence. It:
+
+1. decodes the event sequence under configured event, byte, attachment, and key
+   limits;
+2. replays the log to its latest accepted state;
+3. derives the expected KERI principal from that state;
+4. parses the signed verification-method identifier into establishment
+   sequence and key index;
+5. selects the key valid at that establishment state;
+6. checks that the descriptor’s signature suite matches the selected key.
+
+When an immutable verifier checkpoint matches the replayed state and evaluation
+time, the adapter can add claims such as `controller-state-current-at`,
+`revocation-checked-at`, and `witness-threshold-met`.
+
+Both adapters return `ControlEvidence`, but they do not claim equal assurance.
+The verifier applies role-indexed assurance policy after the adapter returns.
+
+## Signature suites verify bytes selected by the method
+
+Principal methods and signature algorithms are separate registries.
+
+```rust
+pub trait SignatureSuite {
+    fn id(&self) -> &SignatureSuiteId;
+    fn configuration_id(&self) -> AdapterConfigurationId;
+
+    fn verify(
+        &self,
+        input: SignatureInput<'_>,
+    ) -> Result<(), SignatureError>;
+
+    fn work_units(&self) -> u64;
+}
+```
+
+V1 includes exact implementations for:
+
+- `ed25519-v1`;
+- `p256-sha256-v1`.
+
+The P-256 implementation parses a SEC1 public key and fixed-width signature,
+rejects high-S signatures, then verifies the complete domain-separated signing
+preimage. Ed25519 verifies the same class of preimage with strict RFC 8032
+semantics.
+
+SHA-256 is not interchangeable with those signature suites. It supplies
+content digests, object identifiers, configuration commitments, and the hash
+inside the P-256 suite. KERI is not a signature suite either; it is a principal
+method that selects a key from controller history. Keeping these categories
+separate prevents a new identity method from changing the meaning of signature
+verification.
+
+## The registry is part of the trusted input
+
+`ImmutableRegistries` rejects duplicate implementation identifiers and computes
+one configuration identifier over every implementation ID and immutable
+configuration value.
+
+```rust
+let registries = ImmutableRegistries::new(
+    &principal_methods,
+    &signature_suites,
+)?;
+
+let context = context.with_configuration(
+    registries.configuration_id(),
+)?;
+```
+
+At verification time, two comparisons occur before principal control:
+
+```text
+context.accepted_registries.manifest == executable_registry.manifest
+context.configuration              == executable_registry.configuration
+```
+
+The manifest identifies the protocol registry. The configuration identifier
+commits the actual adapters and their decision-affecting configuration,
+including KERI limits and checkpoints.
+
+Two machines can use different admitted principal systems. They cannot produce
+an authorized result while pretending they executed the same configuration.
+
+## Transports carry proofs but do not grant authority
+
+Proof exchange has its own semantic port:
+
+```rust
+pub trait ClientProofChannel {
+    type Error;
+
+    fn peer_observation(&self) -> &PeerObservation;
+    async fn receive_challenge(&mut self)
+        -> Result<ActionChallenge, Self::Error>;
+    async fn submit_action(&mut self, request: ActionSubmission)
+        -> Result<ActionResponse, Self::Error>;
+}
+```
+
+The same sequence has adapters for Iroh, HTTPS, TCP, Unix sockets, files, and
+in-memory tests:
+
+```text
+receive challenge
+→ submit bounded action body and proof
+→ receive response
+```
+
+Each channel reports what it actually observed:
+
+```rust
+pub enum PeerObservation {
+    IrohEndpoint([u8; 32]),
+    HttpsServerCertificate([u8; 32]),
+    MutualTlsCertificate([u8; 32]),
+    TcpEndpoint(String),
+    UnixPeerCredentials { uid: u32, gid: u32, pid: Option<u32> },
+    FileEnvelope { digest: [u8; 32], sequence: u64 },
+    AuthenticatedOpaque { kind: String, identifier: Vec<u8> },
+    ServerAuthenticated,
+    Unauthenticated,
+}
+```
+
+An Iroh endpoint key, TLS certificate, Unix user ID, or authenticated HTTPS
+server is a transport observation. It is not automatically an Auths principal
+and does not create permission.
+
+If an application requires channel binding, its profile commits the relevant
+peer identifier into the signed action and compares it with the observation.
+The relation is explicit rather than inferred from the transport.
+
+Transport failures remain transport errors. They do not become `Denied`,
+`Indeterminate`, or `Authorized` results. Conversely, an authenticated TLS or
+Iroh channel cannot upgrade an invalid proof.
+
+## Permission keeps the same meaning across machines
+
+After identity and signature checks succeed, the authority kernel works with a
+small model:
+
+```rust
+pub struct Permission {
+    capability: CapabilityId,
+    resource: ResourceId,
+}
+```
+
+A GitHub integration might derive:
+
+```text
+("issue.close", "github:auths-dev/auths-proof/issues/42")
+```
+
+A Kubernetes profile might derive:
+
+```text
+("deployment.rollout", "k8s:prod/payments/api")
+```
+
+The strings differ because the domains differ. The operation does not:
+
+1. the profile canonicalizes the application request;
+2. it derives one capability-resource pair;
+3. the grant chain may preserve or narrow the permission set;
+4. the terminal action must request a member of that set;
+5. the verified canonical body is the body available for execution.
+
+Identity systems answer who controlled the signed statement. Signature suites
+answer whether the signature matches its exact bytes. Transports answer how the
+proof arrived and what channel peer was observed. The authority model answers
+whether the resulting principal was delegated permission for this exact action.
+
+That separation is the form of agnosticism implemented by the repository.
+
+Part one introduces the motivation and verifier contract:
+[Authority should only get smaller](/blog/authority-should-only-get-smaller).
+
+Part two follows the checks that keep the boundaries intact:
+[The repository rejects reverse dependencies](/blog/the-repository-rejects-reverse-dependencies).

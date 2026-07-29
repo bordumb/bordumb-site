@@ -1,0 +1,226 @@
+---
+title: "A function signature should say what the function can do"
+description: "How capsec makes filesystem and network authority visible in Rust types, what the compiler rejects, and where audit must take over."
+publishedAt: 2026-07-29
+tags: [rust, authority, architecture, verification]
+draft: false
+featured: false
+---
+
+import Mermaid from "@/components/content/Mermaid.astro";
+
+This function reads a file:
+
+```rust
+fn load_config(path: &str) -> std::io::Result<String> {
+    std::fs::read_to_string(path)
+}
+```
+
+Its signature names the input, the output, and the failure channel. It does not
+name the filesystem. A caller can discover that dependency only by opening the
+body, following documentation, or observing the process.
+
+[capsec](https://github.com/auths-dev/capsec) moves the filesystem dependency
+into the type boundary:
+
+```rust
+use capsec::prelude::*;
+
+fn load_config(
+    path: &str,
+    cap: &impl CapProvider<FsRead>,
+) -> Result<String, CapSecError> {
+    capsec::fs::read_to_string(path, cap)
+}
+```
+
+Both functions perform the same business operation: accept a path and return
+its contents. The second function also states a precondition. The caller must
+provide a value that implements `CapProvider<FsRead>`.
+
+That difference is enforced at compilation, provided the implementation stays
+inside capsec's typed wrappers.
+
+## The wrapper checks the target before touching `std`
+
+The filesystem wrapper in
+[`capsec-std/src/fs.rs`](https://github.com/auths-dev/capsec/blob/main/crates/capsec-std/src/fs.rs)
+asks the provider for an `FsRead` proof against the requested path. Only after
+that succeeds does it call the standard library:
+
+```rust
+pub fn read_to_string(
+    path: impl AsRef<Path>,
+    cap: &impl CapProvider<FsRead>,
+) -> Result<String, CapSecError> {
+    let _proof: Cap<FsRead> =
+        cap.provide_cap(&path.as_ref().to_string_lossy())?;
+
+    Ok(std::fs::read_to_string(path)?)
+}
+```
+
+An unscoped `Cap<FsRead>` always provides that proof. A scoped provider can
+inspect the target string and reject a path outside its scope. The same trait
+therefore carries two checks:
+
+1. the Rust type must provide the correct permission class;
+2. the provider may enforce a narrower runtime scope for the concrete target.
+
+Network access follows the same structure. The implementation in
+[`capsec-std/src/net.rs`](https://github.com/auths-dev/capsec/blob/main/crates/capsec-std/src/net.rs)
+requires `NetConnect`, checks the address, and then opens the socket:
+
+```rust
+pub fn tcp_connect(
+    addr: &str,
+    cap: &impl CapProvider<NetConnect>,
+) -> Result<TcpStream, CapSecError> {
+    let _proof: Cap<NetConnect> = cap.provide_cap(addr)?;
+    Ok(TcpStream::connect(addr)?)
+}
+```
+
+A reporting function consequently exposes its network dependency without
+exposing the implementation:
+
+```rust
+fn send_report(
+    addr: &str,
+    data: &str,
+    cap: &impl CapProvider<NetConnect>,
+) -> Result<(), CapSecError> {
+    let mut stream = capsec::net::tcp_connect(addr, cap)?;
+    stream.write_all(data.as_bytes())?;
+    Ok(())
+}
+```
+
+The caller can pass `NetConnect` to `send_report`. That token does not satisfy
+`FsRead`, `NetBind`, or `Spawn`.
+
+## The wrong capability is a type error
+
+The repository retains a
+[compile-fail fixture](https://github.com/auths-dev/capsec/blob/main/crates/capsec/tests/compile_fail/capsec_std_wrong_cap.rs)
+for the mismatch:
+
+```rust
+let root = capsec::root();
+let net_cap = root.grant::<NetConnect>();
+
+let _ = capsec::fs::read_to_string("/etc/passwd", &net_cap);
+```
+
+`cargo test` compiles that file and requires the compiler to reject it. The
+recorded diagnostic is:
+
+```text
+error[E0277]: the trait bound
+  `Cap<NetConnect>: CapProvider<FsRead>` is not satisfied
+
+8 | capsec::fs::read_to_string("/etc/passwd", &net_cap);
+  |                                            ^^^^^^^^
+  | the trait `CapProvider<FsRead>` is not implemented
+  | for `Cap<NetConnect>`
+```
+
+This failure does not depend on a string comparison between permission names.
+Rust searches for an implementation of `CapProvider<FsRead>` on
+`Cap<NetConnect>` and finds none.
+
+The allowed relationships are explicit in
+[`cap_provider.rs`](https://github.com/auths-dev/capsec/blob/main/crates/capsec-core/src/cap_provider.rs).
+For example, `FsAll` may provide `FsRead` or `FsWrite`, and `NetAll` may provide
+`NetConnect` or `NetBind`:
+
+```rust
+impl_cap_provider_subsumes!(FsAll => FsRead, FsWrite);
+impl_cap_provider_subsumes!(NetAll => NetConnect, NetBind);
+```
+
+There is no cross-family rule from `NetConnect` to `FsRead`, so the call cannot
+type-check.
+
+<Mermaid
+  title="Capability flow and bypass detection"
+  description="Typed capsec calls require a matching provider before reaching the standard library. Direct standard-library calls bypass that type relation and become audit findings."
+  source={`flowchart LR
+    R["CapRoot"] --> FR["Cap(FsRead)"]
+    R --> NC["Cap(NetConnect)"]
+
+    FR --> LF["load_config(path, CapProvider(FsRead))"]
+    LF --> FP["provide_cap(path)"]
+    FP --> FS["std::fs::read_to_string"]
+
+    NC --> SR["send_report(addr, CapProvider(NetConnect))"]
+    SR --> NP["provide_cap(addr)"]
+    NP --> TCP["TcpStream::connect"]
+
+    NC -. "no matching trait implementation" .-> REJ["compiler error at load_config"]
+
+    D["direct std call"] --> BY["filesystem or socket operation"]
+    D -. "source or MIR scan" .-> AUD["cargo capsec audit finding"]`}/>
+
+## The compiler protects the typed path
+
+Rust does not prevent a function from ignoring its capability parameter and
+calling `std::fs::read_to_string` directly:
+
+```rust
+fn load_config(
+    path: &str,
+    _cap: &impl CapProvider<FsRead>,
+) -> std::io::Result<String> {
+    std::fs::read_to_string(path)
+}
+```
+
+The signature now advertises `FsRead`, but the operation did not consume a
+proof. A function with no capability parameter can make the same direct call.
+The compiler only enforces the relationship created by the capsec wrapper's
+trait bound.
+
+`unsafe` creates a second boundary. `Cap<P>` has a private constructor, but
+unsafe code can fabricate values by violating Rust's normal initialization
+rules. FFI creates a third: the scanner can identify an `extern` block, but it
+cannot derive the behavior of foreign machine code from a Rust signature.
+
+The repository tests these cases instead of folding them into the type-system
+claim:
+
+| Path | What is enforced or detected |
+|---|---|
+| `capsec::fs` and `capsec::net` wrappers | A matching `CapProvider<P>` is required by Rust. |
+| Direct `std::fs`, `std::net`, environment, and process calls | The audit scanner reports known authority-bearing calls. |
+| `unsafe` capability fabrication | Outside the safe-construction guarantee; repository tests prove that several forgery techniques succeed. The current audit categories do not generically report every `unsafe` block. |
+| `extern` functions | The audit scanner reports the FFI boundary, not the foreign implementation's effects. |
+
+The default audit works from Rust syntax. It resolves fully qualified calls,
+import aliases, and glob imports. That leaves documented blind spots, including
+function-pointer indirection, `include!`, inline assembly, generated code, and
+some re-export paths. Deep analysis uses compiler MIR and can recover some
+macro-expanded and indirect behavior, but it requires the nightly driver and
+still does not turn foreign code into inspectable Rust.
+
+The resulting claim is narrower than “a function without a capability cannot
+perform I/O.” It also means a policy that intends to forbid unsafe code needs a
+separate compiler lint or audit step. The supported capsec type claim is:
+
+> A call through a capsec wrapper cannot compile unless its arguments provide
+> the wrapper's permission type. Direct ambient calls are audit findings;
+> unsafe construction and other escape hatches require checks outside that
+> trait relation.
+
+That division gives each mechanism a check it can actually perform. Rust
+rejects the wrong token. The runtime provider checks the target. The audit
+scanner searches for known direct bypasses. A separate policy must reject
+unsafe code when the application cannot permit capability fabrication.
+
+## Continue through the dependency graph
+
+A typed application boundary does not make dependency upgrades inert.
+[A dependency update can change what your program is allowed to do](/blog/a-dependency-update-can-change-what-your-program-is-allowed-to-do)
+follows authority-bearing calls across crate versions and through a three-crate
+call chain.

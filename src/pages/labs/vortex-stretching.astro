@@ -1,0 +1,115 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import VortexExposureLab from "@/components/labs/VortexExposureLab.astro";
+---
+
+<BaseLayout
+  title="The geometry of a possible singularity — bordumb"
+  description="An interactive guide to vortex stretching, geometric depletion, viscosity, and the remaining Navier–Stokes regularity wall."
+>
+  <article class="lab-page page-shell">
+    <header class="lab-hero">
+      <p class="eyebrow">Navier–Stokes · visual study</p>
+      <h1>The geometry of a<br /><em>possible singularity.</em></h1>
+      <div class="hero-note">
+        <p>
+          Five visual steps connect fluid motion to the precise estimate that
+          remains open. Begin with the arrows; the proof graph comes last.
+        </p>
+        <span>Conceptual model · not a numerical simulation</span>
+      </div>
+    </header>
+
+    <VortexExposureLab />
+
+    <footer class="lab-footer">
+      <p>
+        The formal account follows the same path through executable claims,
+        retained counterexamples, and kernel-checked assemblies.
+      </p>
+      <a class="text-link" href="/blog/a-probe-that-has-never-failed">
+        Read the proof-ledger essay
+      </a>
+    </footer>
+  </article>
+</BaseLayout>
+
+<style>
+  .lab-page {
+    padding-bottom: clamp(5rem, 10vw, 8rem);
+  }
+
+  .lab-hero {
+    padding-block: clamp(4rem, 10vw, 8rem) clamp(3rem, 7vw, 5rem);
+  }
+
+  .lab-hero h1 {
+    max-width: 68rem;
+    margin: 1rem 0 0;
+    font-family: var(--serif);
+    font-size: clamp(3.2rem, 8vw, 7.2rem);
+    font-weight: 400;
+    letter-spacing: -0.06em;
+    line-height: 0.9;
+  }
+
+  .lab-hero h1 em {
+    color: var(--accent);
+    font-weight: 400;
+  }
+
+  .hero-note {
+    display: grid;
+    grid-template-columns: minmax(0, 35rem) auto;
+    gap: 2rem;
+    align-items: end;
+    justify-content: space-between;
+    margin-top: clamp(2.5rem, 6vw, 4rem);
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border-strong);
+  }
+
+  .hero-note p {
+    margin: 0;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: clamp(1.08rem, 2vw, 1.35rem);
+    line-height: 1.5;
+  }
+
+  .hero-note span {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .lab-footer {
+    display: flex;
+    gap: 2rem;
+    align-items: end;
+    justify-content: space-between;
+    padding-top: 3rem;
+  }
+
+  .lab-footer p {
+    max-width: 37rem;
+    margin: 0;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: 1.05rem;
+    line-height: 1.55;
+  }
+
+  @media (max-width: 700px) {
+    .hero-note {
+      grid-template-columns: 1fr;
+    }
+
+    .lab-footer {
+      display: grid;
+      align-items: start;
+    }
+  }
+</style>

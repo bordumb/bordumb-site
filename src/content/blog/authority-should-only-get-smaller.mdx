@@ -1,0 +1,297 @@
+---
+title: "Authority should only get smaller"
+description: "Why auths-proof separates identity evidence, delegated authority, and application execution behind one offline verification contract."
+publishedAt: 2026-07-27
+tags: [authority, identity, cryptography, rust]
+draft: false
+featured: false
+---
+
+import Mermaid from "@/components/content/Mermaid.astro";
+
+I had become tired of writing authorization as glue between unrelated systems.
+
+An OAuth integration arrives with scopes, refresh tokens, audiences, expiry,
+provider claims, and a particular interpretation of delegation. An API key
+usually arrives as a secret string plus application code that decides what the
+string means. A cloud role, webhook secret, service token, and mTLS certificate
+each introduce another way to identify a caller and another place to encode
+permission.
+
+The resulting code does not merely contain several credential formats. It mixes
+four different questions:
+
+1. Who or what controls this credential?
+2. Who granted authority to that principal?
+3. Does the authority cover this exact action?
+4. What should the application execute after verification?
+
+When those questions share middleware, database lookups, HTTP handlers, and
+provider SDKs, changing one identity system can change authorization behavior
+somewhere else.
+
+[auths-proof](https://github.com/auths-dev/auths-proof) began from a narrower
+target: give different machines one bounded object that answers the third
+question without requiring them to share an OAuth server, API-key database,
+network stack, or identity provider.
+
+## The verifier receives three byte strings
+
+The portable V1 boundary is:
+
+```text
+verify_v1(
+    proof_cbor,
+    canonical_action_cbor,
+    trusted_context_cbor,
+) -> verification_result_cbor
+```
+
+Each input has a separate owner.
+
+- The proof producer supplies signed grants, signed actions, evidence, status
+  statements, attachments, and an authorization plan.
+- The application profile supplies the canonical action: the exact body,
+  permission, resource, and optional budget request that would be executed.
+- The verifier supplies the trusted context: accepted roots and registries,
+  audience, challenge, evaluation time, status snapshots, assurance policy,
+  composition requirements, and resource limits.
+
+The proof can carry evidence. It cannot add a trust anchor or weaken the
+verifier’s context.
+
+<Mermaid
+  title="Three inputs enter one sealed decision"
+  description="The proof, canonical action, and verifier-owned context enter the staged offline verifier. Only an authorized result contains the sealed action used by the application."
+  source={`flowchart LR
+    P["ProofBundle<br/>signed grants + evidence"]
+    A["CanonicalAction<br/>body + permission + resource"]
+    C["VerifierContext<br/>roots + time + policy + limits"]
+    P --> D["bounded decode"]
+    A --> D
+    C --> D
+    D --> R["resolve digest graph"]
+    R --> K["verify principal control"]
+    K --> U["accumulate authority"]
+    U --> B["bind exact action"]
+    B --> V["VerifiedAction"]
+    D -.-> N["Denied / Indeterminate"]
+    R -.-> N
+    K -.-> N
+    U -.-> N
+    B -.-> N`}
+/>
+
+The Rust façade keeps the same shape:
+
+```rust
+pub fn verify_cbor(
+    &self,
+    proof_cbor: &[u8],
+    canonical_action_cbor: &[u8],
+    trusted_context_cbor: &[u8],
+) -> Result<VerificationResult, CodecError> {
+    let cbor = auths_verifier::verify_v1(
+        proof_cbor,
+        canonical_action_cbor,
+        trusted_context_cbor,
+        &self.registries,
+    )?;
+
+    let portable = decode_verification_result(&cbor)?;
+    Ok(VerificationResult { portable, cbor })
+}
+```
+
+The call performs no network, filesystem, environment, system-clock, database,
+randomness, replay-store, budget-store, or private-key operation. The
+evaluation time and status snapshots are values in `VerifierContext`, not
+ambient reads inside the verifier.
+
+This is not trustless authorization. Trust still enters through local roots,
+accepted implementations, status issuers, and policy. The boundary makes each
+choice an input that can be hashed, compared, retained, and replayed.
+
+## Delegation intersects authority dimensions
+
+A permission name is only one component of authority. A grant also carries a
+profile, validity interval, audience set, action constraint, budget ceiling,
+remaining delegation depth, status policy, and assurance floor.
+
+For a parent authority $A$ and child grant $B$, acceptance requires:
+
+$$
+B \preceq A.
+$$
+
+The relation means that every component of $B$ stays within the corresponding
+component of $A$. The production evaluator constructs these checks directly:
+
+```rust
+let checks = AttenuationChecks {
+    root_preserved: true,
+    depth_decreases:
+        parent.remaining_depth > 0
+        && grant.remaining_depth < parent.remaining_depth,
+    profile_attenuates:
+        selected_profile_attenuates(
+            parent.profile,
+            parent.allowed_profiles,
+            grant.profile,
+        ),
+    permissions_attenuate:
+        permission_set_is_subset(
+            grant.permissions,
+            parent.permissions,
+        ),
+    validity_attenuates:
+        validity_window_contains(
+            parent.validity,
+            grant.validity,
+        ),
+    audiences_attenuate:
+        audience_set_is_subset(
+            grant.audiences,
+            parent.audiences,
+        ),
+    action_constraint_attenuates:
+        action_constraint_attenuates(
+            grant.action_constraint,
+            parent.action_constraint,
+        ),
+    budget_attenuates:
+        optional_budget_attenuates(
+            grant.budget_ceiling,
+            parent.budget_ceiling,
+        ),
+    status_attenuates:
+        status_policy_attenuates(
+            grant.status_policy,
+            parent.status_policy,
+        ),
+    assurance_attenuates:
+        assurance_policy_id_equal(
+            grant.assurance_floor,
+            parent.assurance_policy,
+        ),
+};
+```
+
+If the issuer is not the parent’s current subject, or the parent grant
+identifier does not match, the chain is broken. If any attenuation check fails,
+the verifier returns `DelegationExpanded`.
+
+A child grant can therefore:
+
+- remove permissions, but not add one;
+- shorten its validity, but not extend it;
+- reduce its audiences, but not introduce another audience;
+- restrict allowed action bodies, but not restore a body the parent excluded;
+- lower a budget ceiling, but not raise it;
+- reduce remaining delegation depth, but not preserve an infinite chain.
+
+These comparisons are applied at every grant edge. Effective authority is the
+intersection accumulated while walking from the local trust anchor to the
+terminal actor.
+
+## A permission binds a capability to a resource
+
+The common permission type contains two identifiers:
+
+```rust
+pub struct Permission {
+    capability: CapabilityId,
+    resource: ResourceId,
+}
+```
+
+`issue` by itself is not a permission. Neither is
+`repo:auths-dev/auths-proof`. The pair can express:
+
+```text
+capability = "issue.close"
+resource   = "radicle:repo:auths-dev/auths-proof/issues/42"
+```
+
+The application profile is responsible for converting its native request into
+a canonical body and deriving that exact pair. The verifier treats the body as
+opaque bytes, but it checks that:
+
+- the action’s permission belongs to the accumulated permission set;
+- the resource fits a namespace admitted by the selected trust anchor;
+- the canonical body digest satisfies the grant’s body constraint;
+- the requested budget fits the accumulated ceiling;
+- the audience, challenge, validity, actor, terminal grant, plan, and channel
+  binding all match.
+
+The application does not execute the request it received before verification.
+It executes a domain command decoded from the canonical body inside
+`VerifiedAction`.
+
+## Authorization has three verdicts
+
+The public façade returns:
+
+```rust
+pub enum Verdict {
+    Authorized,
+    Denied,
+    Indeterminate,
+}
+```
+
+`Denied` means the available trustworthy facts establish failure: an invalid
+signature, widened delegation, wrong audience, revoked grant, or permission
+outside the chain.
+
+`Indeterminate` means a required fact or implementation is unavailable: the
+proof may need a status snapshot, historical controller state, assurance
+evidence, or support for an exact registered method.
+
+Both are non-authorizing outcomes. The distinction controls the next action. A
+denial should not be retried through a weaker path. An indeterminate result may
+be retried only after the caller supplies new trusted facts or an explicitly
+accepted implementation.
+
+The native API preserves that distinction while carrying the sealed action only
+on the authorized branch:
+
+```rust
+match engine.verify_typed(proof, &canonical_action, &context) {
+    VerificationOutcome::Authorized(action) => execute(*action),
+    VerificationOutcome::Denied(reason) => reject(reason),
+    VerificationOutcome::Indeterminate(requirement) => {
+        request_missing_fact(requirement)
+    }
+}
+```
+
+The repository’s offline example stops after checking the portable verdict and
+required plan identifier. Stateful execution belongs outside the core, but its
+input must come from the authorized branch rather than a parallel
+interpretation of the unverified request.
+
+## The trust interface is explicit rather than absent
+
+OAuth, API keys, service certificates, KERI histories, WebAuthn assertions, and
+raw public keys do not become equivalent credentials. They can establish
+different facts with different assurance.
+
+The common interface begins after those systems have produced bounded evidence.
+Each principal method must return:
+
+- the verification key selected for the signed statement;
+- the assurance claims it established;
+- the exact evidence identifiers it consumed;
+- its implementation identity and version;
+- the deterministic work it charged.
+
+The authorization kernel then applies the same grant-chain and action-coverage
+rules regardless of which admitted method established principal control.
+
+The next post follows the repository rules that keep this kernel independent
+from networking and product state:
+[The repository rejects reverse dependencies](/blog/the-repository-rejects-reverse-dependencies).
+
+The third follows the identity, signature, and transport interfaces:
+[One authority model, many identity and transport systems](/blog/one-authority-model-many-systems).

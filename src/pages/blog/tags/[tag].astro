@@ -1,0 +1,64 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import PostCard from "@/components/PostCard.astro";
+import { publishedPosts, tagLabel } from "@/utils/content";
+
+export async function getStaticPaths() {
+  const posts = publishedPosts(await getCollection("blog"));
+  const tags = [...new Set(posts.flatMap((post) => post.data.tags))];
+  return tags.map((tag) => ({
+    params: { tag },
+    props: { tag, posts: posts.filter((post) => post.data.tags.includes(tag)) },
+  }));
+}
+
+const { tag, posts } = Astro.props;
+const label = tagLabel(tag);
+---
+
+<BaseLayout title={`${label} writing — bordumb`} description={`Writing filed under ${label}.`}>
+  <header class="tag-header page-shell">
+    <a href="/blog">Writing / Topics</a>
+    <h1>{label}</h1>
+    <p>{posts.length} {posts.length === 1 ? "entry" : "entries"} exploring this thread.</p>
+  </header>
+  <section class="tag-posts page-shell">
+    {posts.map((post) => <PostCard post={post} />)}
+  </section>
+</BaseLayout>
+
+<style>
+  .tag-header {
+    padding-top: clamp(5rem, 12vw, 9rem);
+  }
+
+  .tag-header > a {
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    font-weight: 650;
+    text-decoration: none;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    margin: 1rem 0 0;
+    font-family: var(--serif);
+    font-size: clamp(4rem, 12vw, 9rem);
+    font-weight: 400;
+    letter-spacing: -0.065em;
+    line-height: 0.9;
+  }
+
+  .tag-header p {
+    margin: 1.5rem 0 0;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: 1.15rem;
+  }
+
+  .tag-posts {
+    margin-top: 5rem;
+  }
+</style>

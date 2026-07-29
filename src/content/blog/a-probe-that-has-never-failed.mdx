@@ -1,0 +1,500 @@
+---
+title: "A probe that has never failed proves nothing"
+description: "Why executable claims need retained counterexamples, distinct failure states, and a gate that distrusts the confidence of its operator."
+publishedAt: 2026-07-29
+tags: [verification, agents, evidence]
+draft: false
+featured: true
+---
+
+import Callout from "@/components/content/Callout.astro";
+import Mermaid from "@/components/content/Mermaid.astro";
+
+Software has always contained claims. *This parser rejects malformed input.*
+*This permission cannot widen.* *This proof contains no unproved axiom.* We
+usually write those claims in prose, then ask a test suite to gesture in their
+direction.
+
+The uncomfortable question is not whether a check passes. It is whether the
+check knows how to fail.
+
+That question is the load-bearing idea in
+[recurve](https://github.com/bordumb/recurve). A promise becomes a claim; the
+claim gets an executable probe; and the probe is not admitted until it rejects
+a retained known-bad counterexample—a **trap**.
+
+## Three verdicts, not two
+
+A conventional check tends to collapse the world into success and failure.
+That is already too coarse.
+
+| Verdict | Meaning |
+|---|---|
+| `GREEN` | The measured claim holds under this probe. |
+| `RED` | The claim does not yet hold. This may be honest unfinished work. |
+| `BROKEN` | The probe could not measure the claim. No verdict exists. |
+
+The distinction between RED and BROKEN matters. If the Lean toolchain is
+missing, a proof probe did not discover an unproved theorem. It failed to ask
+the theorem anything at all.
+
+<Callout label="Epistemic rule">
+  Absence of evidence is not a negative result. A crashed, stale, or
+  unmeasurable probe must block certification without pretending the underlying
+  claim is false.
+</Callout>
+
+<Mermaid
+  title="The gated claim cycle"
+  description="A claim moves from an observed failure through the smallest change and a fleet-wide gate. The retained trap keeps testing the test."
+  source={`flowchart LR
+    C[Claim] --> P[Probe]
+    T[Known-bad trap] --> P
+    P -->|rejects trap| R[RED baseline]
+    R --> S[Smallest honest change]
+    S --> G{Fleet gate}
+    G -->|claim green + trap red| E[Evidence retained]
+    G -->|red| S
+    G -->|broken| H[Halt for measurement]`}
+/>
+
+## Testing the test
+
+Suppose a verifier is meant to reject authority that widens as it is
+delegated:
+
+```python
+def attenuates(parent: Grant, child: Grant) -> bool:
+    return (
+        child.permissions <= parent.permissions
+        and child.expires_at <= parent.expires_at
+        and child.budget <= parent.budget
+    )
+
+assert not attenuates(read_only, read_and_write)
+```
+
+The last line is not an incidental unit test. It is the seed of the trap: an
+example the probe must reject forever. If a refactor makes
+`read_and_write` pass beneath `read_only`, the test of correctness has itself
+regressed.
+
+In logical form, the gate is not merely the current claim:
+
+$$
+G = C_{\mathrm{new}}
+\land \bigwedge_{i=1}^{n} C_i
+\land \bigwedge_{j=1}^{m} \neg T_j
+$$
+
+The new claim must hold, every previously established claim must still hold,
+and every known-bad trap must remain bad.
+
+## A gate should distrust its operator
+
+An autonomous agent is excellent at producing plausible motion. It can
+decompose a task, try an implementation, explain a failure, and propose a new
+route. It is much less suited to deciding whether its own work is finished.
+
+recurve separates those responsibilities. Judgment lives in the agent.
+Stopping lives in a deterministic controller. The ledger is the memory between
+cycles; the gate is the serialization point.
+
+The `SUB-BILIN-INT-BOCHNER` claim in the Navier–Stokes repository records an
+actual RED → GREEN cycle across Lean and Python. The theorem bounds a
+Banach-valued time integral: if the size of `F s` grows no faster than
+`C / √(t - s)`, its accumulated size from `0` to `t` is at most `2C√t`.
+
+The first committed version fixed the exact statement while leaving its proof
+open:
+
+```lean
+theorem duhamel_time_integral_bound
+    {G : Type*} [NormedAddCommGroup G] [NormedSpace ℝ G]
+    {F : ℝ → G} {t C : ℝ} (ht : 0 < t)
+    (hbound : ∀ s ∈ Set.Ioc (0 : ℝ) t,
+      ‖F s‖ ≤ C * (t - s) ^ (-((1 : ℝ) / 2))) :
+    ‖∫ s in (0 : ℝ)..t, F s‖
+      ≤ C * (2 * t ^ ((1 : ℝ) / 2)) := by
+  sorry
+```
+
+Lean permits `sorry` while a proof is under construction, but marks the
+resulting theorem as dependent on `sorryAx`. The claim's check file imports the
+built module, applies `duhamel_time_integral_bound` to the pinned proposition,
+and asks Lean to print its axioms. The probe rejects any axiom outside
+`propext`, `Classical.choice`, and `Quot.sound`; therefore `sorryAx` makes this
+version RED.
+
+Python does not inspect the proof or accept an agent's completion report. The
+Recurve runner executes the claim's probe and converts its exit code into a
+closed set of outcomes:
+
+```python
+proc = subprocess.run(
+    ["bash", str(gap.probe)],
+    cwd=gap.suite_dir,
+    capture_output=True,
+    text=True,
+    timeout=timeout_s,
+    env=env,
+)
+
+outcome = {0: Outcome.GREEN, 1: Outcome.RED, 3: Outcome.SKIP}.get(
+    proc.returncode, Outcome.BROKEN
+)
+```
+
+For this claim, the executable probe runs `lake env lean` against the pinned
+check. Exit `1` means the proposition is absent or its proof depends on a
+forbidden axiom, so Recurve keeps the claim open and the loop continues.
+Timeouts, crashes, missing artifacts, and unrecognized exit codes become
+`BROKEN`, never GREEN.
+
+The next version replaced the placeholder with a proof. It first establishes
+that the scalar upper bound is integrable, then bounds the norm of the vector
+integral by that scalar integral, moves `C` outside, and substitutes the
+already-proved value of the singular integral:
+
+```lean
+theorem duhamel_time_integral_bound
+    {G : Type*} [NormedAddCommGroup G] [NormedSpace ℝ G]
+    {F : ℝ → G} {t C : ℝ} (ht : 0 < t)
+    (hbound : ∀ s ∈ Set.Ioc (0 : ℝ) t,
+      ‖F s‖ ≤ C * (t - s) ^ (-((1 : ℝ) / 2))) :
+    ‖∫ s in (0 : ℝ)..t, F s‖
+      ≤ C * (2 * t ^ ((1 : ℝ) / 2)) := by
+  have hgint : IntervalIntegrable
+      (fun s => C * (t - s) ^ (-((1 : ℝ) / 2))) volume 0 t :=
+    (duhamel_singular_integrable t).const_mul C
+  calc
+    ‖∫ s in (0 : ℝ)..t, F s‖
+        ≤ ∫ s in (0 : ℝ)..t, C * (t - s) ^ (-((1 : ℝ) / 2)) :=
+      norm_integral_le_of_norm_le ht.le
+        (Filter.Eventually.of_forall hbound) hgint
+    _ = C * ∫ s in (0 : ℝ)..t, (t - s) ^ (-((1 : ℝ) / 2)) :=
+      integral_const_mul C _
+    _ = C * (2 * t ^ ((1 : ℝ) / 2)) := by
+      rw [duhamel_singular_integral ht]
+```
+
+The same Python path now receives exit `0` and records GREEN. That result is
+still insufficient by itself. Recurve reruns the probe against a retained copy
+of the exact theorem with `sorry`; the copy must continue to return RED through
+`sorryAx`. The gate can close the claim only when the completed theorem is
+GREEN and the known-unproved version remains RED.
+
+This is not a claim that all probes are equally strong. A check that bottoms out
+in the Lean kernel has a different assurance profile from a screenshot
+comparison or a language-model review. The important move is to make that
+difference visible instead of laundering every green check into the word
+“verified.”
+
+## A decomposition that reaches the apex
+
+The sharper example in the
+[Navier–Stokes proof map](https://github.com/bordumb/navier_stokes)
+is not a model theorem. It begins with the three-dimensional regularity
+problem itself:
+
+> Can a smooth, finite-energy solution of the incompressible Navier–Stokes
+> equations develop a singularity in finite time?
+
+The repository names that apex `fefferman_A`. It remains RED, as it should.
+The interesting part is that one route into it has been reduced to a
+machine-checked dependency graph with one explicit wall.
+
+<Mermaid
+  title="From the regularity apex to one named wall"
+  description="The original global-regularity problem is reduced through continuation and vortex-stretching criteria to the measured geometric-exposure claim. Its assembly has three closed mechanism children and one open residual, which is itself split into two open mechanisms with a closed join."
+  source={`flowchart TD
+    subgraph A["(a) Original problem"]
+      AP["Fefferman A · 3D Navier–Stokes regularity<br/>Can a smooth solution blow up in finite time?<br/>RED · open"]
+    end
+
+    subgraph B["(b) Decomposed attack path"]
+      BKM["BKM continuation criterion<br/>Control vorticity strongly enough → continue the solution"]
+      ST["R7-STRETCH-APRIORI<br/>∫ α⁺(t) dt < ∞<br/>RED · open"]
+      EX["R9-EXPOSURE<br/>∫ (α⁺ + 𝒯) dt < ∞<br/>RED · measured crux"]
+      TR["R9-EXP-TRANSPORT<br/>Exact viscous direction law<br/>GREEN"]
+      VS["R9-EXP-VISC-SIGN<br/>ξ · Δξ = −‖∇ξ‖²<br/>GREEN"]
+      DP["R9-EXP-DEPLETE<br/>Aligned vorticity produces nothing<br/>GREEN"]
+      RW["R9-EXP-RESIDUAL<br/>Viscous coercivity inequality<br/>RED · remaining wall"]
+      J1["R9-EXP-ASSEMBLY<br/>Children imply exposure<br/>GREEN"]
+      RT["R9-EXP-REACT<br/>Control direction turning<br/>RED"]
+      NM["R9-EXP-NMONO<br/>Weighted almost-monotonicity<br/>RED"]
+      J2["R9-EXP-RES-ASSEMBLY<br/>Two mechanisms imply residual<br/>GREEN"]
+    end
+
+    TR --> J1
+    VS --> J1
+    DP --> J1
+    RW --> J1
+    RT --> J2
+    NM --> J2
+    J2 -. "discharges when both leaves close" .-> RW
+    J1 -. "discharges when the wall closes" .-> EX
+    EX --> ST
+    ST --> BKM
+    BKM --> AP`}
+/>
+
+This diagram does **not** say the apex has been solved. It says something more
+precise: if the two remaining mechanism leaves turn GREEN, their already-GREEN
+assembly closes the viscous residual; the residual’s already-GREEN assembly
+closes geometric exposure; and the existing continuation chain carries that
+result to the apex.
+
+The route attacks the hard problem without confusing a map of the mountain
+with the summit.
+
+## The math, from the fluid upward
+
+The velocity field is $u$. Its curl,
+
+$$
+\omega = \nabla \times u,
+$$
+
+is vorticity: at every point, $\omega$ is a tiny arrow describing the local
+axis and strength of rotation.
+
+Write
+
+$$
+\xi = \frac{\omega}{|\omega|}
+$$
+
+for the arrow’s direction, and let
+
+$$
+S = \frac{\nabla u + (\nabla u)^\mathsf{T}}{2}
+$$
+
+be the strain tensor—the part of the flow that stretches and compresses rather
+than merely rotates.
+
+The scalar
+
+$$
+\alpha = \xi \cdot S\xi
+$$
+
+measures how strongly the flow stretches vorticity in its own direction.
+Positive $\alpha$ lengthens the arrow; negative $\alpha$ compresses it.
+
+### Step 1: turn blow-up into an exposure budget
+
+Along the flow, the size of vorticity obeys the schematic inequality
+
+$$
+\frac{d}{dt}\|\omega(t)\|_\infty
+\;\lesssim\;
+\alpha^+(t)\,\|\omega(t)\|_\infty,
+$$
+
+where
+
+$$
+\alpha^+(t)
+=
+\sup_x \max(0,\alpha(t,x)).
+$$
+
+Viscosity does not worsen this maximum-principle estimate. Grönwall then gives
+
+$$
+\|\omega(t)\|_\infty
+\;\lesssim\;
+\|\omega(0)\|_\infty
+\exp\left(\int_0^t \alpha^+(s)\,ds\right).
+$$
+
+Imagine the strongest whirlpool carrying a growth meter. $\alpha^+$ is the
+fastest rate at which any whirlpool is being stretched. If the meter’s total
+charge stays finite, the whirlpool cannot become infinitely strong in finite
+time.
+
+Beale–Kato–Majda supplies the next bridge: loss of smoothness requires the
+time-integrated maximum vorticity to diverge. Therefore a finite stretching
+budget blocks this route to blow-up and continues the solution.
+
+That makes
+
+$$
+\int_0^T \alpha^+(t)\,dt < \infty
+$$
+
+a genuine apex-facing target, not a warm-up exercise.
+
+### Step 2: measure the geometry that stretching alone hides
+
+The proof map strengthens the target by adding a direction-turning exposure:
+
+$$
+\mathcal T(t)
+=
+\sup_{\text{high-vorticity }x}
+|u(t,x)|\,\|\nabla\xi(t,x)\|.
+$$
+
+$\mathcal T$ asks how rapidly the strongest vortex arrows change direction
+across space, weighted by how quickly the fluid carries them.
+
+The measured crux is
+
+$$
+\int_0^T
+\left(\alpha^+(t)+\mathcal T(t)\right)\,dt
+< \infty.
+$$
+
+This is stronger than the stretching budget because both terms are
+nonnegative: if the combined bill is finite, the stretching part is finite.
+That implication is a closed, kernel-checked edge in the repository.
+
+Why add another term to an already hard problem? Because vorticity geometry
+contains the cancellation. Neighbouring vortex arrows that point in nearly the
+same direction suppress the most dangerous part of the stretching kernel.
+Looking only at the size of $\omega$ throws that structure away.
+
+### Step 3: split the crux by mechanism
+
+The exposure claim was cut into four children.
+
+The first child derives the exact viscous transport law:
+
+$$
+\frac{D\xi}{Dt}
+=
+S\xi-\alpha\xi
++
+\frac{\nu}{|\omega|}
+\left(
+\Delta\omega
+-\langle\xi,\Delta\omega\rangle\xi
+\right).
+$$
+
+The subtraction is essential. It projects viscosity perpendicular to $\xi$,
+so the direction vector turns without changing its unit length. Dropping that
+projection is a retained trap.
+
+The second child proves the dissipative sign
+
+$$
+\xi\cdot\Delta\xi
+=
+-\|\nabla\xi\|_F^2.
+$$
+
+If neighbouring arrows point in different directions, viscosity charges an
+energy cost proportional to their roughness. The minus sign says diffusion
+smooths that disagreement rather than amplifying it.
+
+The third child isolates geometric depletion. In the kernel-weighted
+stretching sum, perfectly aligned vorticity samples contribute exactly zero.
+Only the misaligned mass remains:
+
+$$
+\left|
+\sum_i w_i D_i
+\right|
+\le
+\sum_{i\ \mathrm{misaligned}} w_i.
+$$
+
+The dangerous interaction cannot feed on a disciplined bundle of parallel
+vortex lines. It is paid for by the portion that has broken ranks.
+
+All three statements are GREEN. They are not heuristics; their Lean proofs are
+kernel-clean, and their mangled counterparts—wrong projection, wrong
+dissipation sign, wrong mass—remain RED.
+
+### Step 4: name the wall
+
+The remaining child is a viscous coercivity estimate. It asks for a smooth
+majorant $Y$ of the total exposure satisfying
+
+$$
+Y'(t)+\nu\mathcal D(t)
+\le
+g(t)\,(e+Y(t))\bigl(1+\log(e+Y(t))\bigr),
+$$
+
+where
+
+$$
+\mathcal D(t)
+=
+\sup_{\text{high-vorticity }x}
+\|\nabla\xi(t,x)\|_F^2
+$$
+
+and $g$ has finite time budget.
+
+The left side contains the crucial payment:
+
+$$
+\nu\mathcal D.
+$$
+
+Direction roughness is not merely observed; viscosity must absorb it quickly
+enough. Removing this term would claim essentially the same mechanism for
+Euler flow, where known singular examples make the exposure diverge. The
+probe retains that viscosity-free statement as a trap.
+
+The right side looks alarming, but it is just below the threshold needed for
+finite-time escape. Set
+
+$$
+Z=\log(e+Y).
+$$
+
+After dividing by $e+Y$, the inequality has the rough shape
+
+$$
+Z' \lesssim g(1+Z).
+$$
+
+Ordinary Grönwall control keeps $Z$ finite whenever the time budget of $g$ is
+finite; therefore $Y$ remains finite, and so does the exposure integral.
+
+$Y$ is allowed to grow, even very quickly, but its growth rate is tethered to a
+finite fuel tank $g$. The viscous term pays for spatial disorder. If the fuel
+runs out before the deadline, $Y$ cannot reach infinity.
+
+That residual was split once more into two physical mechanisms:
+
+- control the turning exposure driven by the perpendicular reaction
+  $(S\xi)^\perp$;
+- prove a weighted almost-monotonicity law for stretching while retaining the
+  viscous payment $\nu\mathcal D$.
+
+Both leaves remain RED. Their join is GREEN: the repository proves that the two
+statements, exactly as written, add up to the residual inequality. Likewise,
+the parent assembly proves that the transport law, dissipative sign, depletion
+bound, and residual imply the measured exposure claim.
+
+## What the execution trace shows
+
+The sequence in the repository is the method:
+
+| Date | Event | Verdict |
+|---|---|---|
+| 14 July | Arm the stretching-integrability target over the real solution object. | RED |
+| 14 July | Replace a degenerate coherence proxy with the measured exposure claim. | RED |
+| 15 July | Cut exposure into transport, viscous sign, depletion, and one residual; prove the assembly. | Assembly GREEN; parent RED |
+| 15 July | Prove the exact viscous sign. | GREEN |
+| 15 July | Prove that aligned vorticity drops out of the stretching kernel. | GREEN |
+| 15 July | Prove the viscosity-carrying direction and amplitude laws. | GREEN |
+| 15 July | Split the residual into turning and stretching mechanisms; prove their join. | Join GREEN; leaves RED |
+
+This is the more revealing form of successful decomposition. It has not made
+the parent theorem boring yet. Instead, it has made the remaining ignorance
+specific.
+
+There is a direct, checked route from the two open leaves to the regularity
+apex. The connective tissue is already proved. What remains is not “solve
+Navier–Stokes” as an undifferentiated instruction, but two named geometric
+estimates whose exact load in the larger argument is executable.

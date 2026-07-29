@@ -1,0 +1,313 @@
+---
+title: "The repository rejects reverse dependencies"
+description: "How auths-proof turns layer direction, offline verification, deterministic CBOR, and protocol bounds into executable repository checks."
+publishedAt: 2026-07-26
+tags: [architecture, cryptography, rust, verification]
+draft: false
+featured: false
+---
+
+import Mermaid from "@/components/content/Mermaid.astro";
+
+`auths-proof` keeps its verifier in the same monorepo as transports, product
+integrations, language bindings, and demos. That arrangement makes protocol
+changes atomic, but it also makes an invalid import easy to write.
+
+The repository handles that risk with two machine-readable contracts:
+
+- `architecture.toml` classifies every package and defines which layer it may
+  depend on;
+- `core/spec/v1/auths-proof.cddl` defines the bytes that every implementation
+  must accept and produce.
+
+`cargo xtask arch` compares both policy and repository state. A package in the
+wrong directory, an unclassified crate, a reverse dependency, a dependency
+cycle, an unapproved build script, or drift in the committed graph makes the
+command fail.
+
+## Dependencies move toward the kernel
+
+The shipping layers are ordered:
+
+<Mermaid
+  title="Allowed dependency direction"
+  description="Higher layers may depend on lower layers. Core cannot import networking or product behavior, and production packages cannot depend on demos or xtask."
+  source={`flowchart RL
+    D["demos<br/>integration + benchmarks"] --> B["bindings<br/>WASM + Python"]
+    D --> P["product<br/>profiles + runtime + state"]
+    D --> E["exchange<br/>proof transport"]
+    D --> C["core<br/>offline semantics"]
+    B --> P
+    B --> E
+    B --> C
+    P --> E
+    P --> C
+    E --> C
+    X["xtask<br/>non-shipping control plane"] -. "inspects all layers" .-> C`}
+/>
+
+The policy records the direction explicitly:
+
+```toml
+[layers.core]
+path = "core/"
+allowed_dependencies = ["core"]
+
+[layers.exchange]
+path = "exchange/"
+allowed_dependencies = ["core", "exchange"]
+
+[layers.product]
+path = "product/"
+allowed_dependencies = ["core", "exchange", "product"]
+
+[layers.bindings]
+path = "bindings/"
+allowed_dependencies = ["core", "exchange", "product", "bindings"]
+```
+
+This gives the directories semantic meaning.
+
+- `core` owns deterministic protocol semantics and effect-free ports.
+- `exchange` moves proofs but cannot redefine their validity.
+- `product` adds profiles, state, execution, receipts, stores, and integrations.
+- `bindings` expose existing behavior to other languages.
+- `demos` may exercise all shipping layers, but no shipping package may depend
+  on a demo.
+
+If the HTTPS adapter imports a core model type, the edge points toward the
+kernel and passes. If `auths-verifier` imports `reqwest`, the edge either names a
+higher layer or a forbidden external capability and fails.
+
+## `xtask` reads the actual Cargo graph
+
+The check does not search source text for suspicious names. It runs
+`cargo metadata`, obtains every resolved workspace package and dependency, and
+compares the result with `architecture.toml`.
+
+The first equality prevents undocumented packages:
+
+```rust
+let workspace_names: BTreeSet<String> = packages
+    .iter()
+    .map(package_name)
+    .collect::<Result<_, _>>()?;
+
+let classified: BTreeSet<_> =
+    policy.packages.keys().cloned().collect();
+
+if workspace_names != classified {
+    return Err(format!(
+        "architecture package classification drift; \
+         missing={missing:?}, stale={stale:?}"
+    ));
+}
+```
+
+For each dependency edge, the check resolves both package layers:
+
+```rust
+if let Some(dependency_layer) = dependency_layer {
+    if !layer.allowed_dependencies.contains(dependency_layer) {
+        return Err(format!(
+            "forbidden {layer_name} -> {dependency_layer} dependency: \
+             {name} -> {dependency_name}"
+        ));
+    }
+}
+```
+
+Core also has a capability denylist containing async runtimes, web frameworks,
+network clients, databases, key stores, and hosted SDKs. Entries include
+`tokio`, `reqwest`, `iroh`, `axum`, `sqlx`, `keyring`, and `git2`.
+
+That second check matters because an external crate has no internal layer label:
+
+```rust
+if layer_name == "core"
+    && dependency_layer.is_none()
+    && policy.core_forbidden_dependencies
+        .iter()
+        .any(|name| dependency_matches(name))
+{
+    return Err(format!(
+        "core capability dependency is forbidden: \
+         {package} -> {dependency}"
+    ));
+}
+```
+
+The command also checks:
+
+| Repository fact | Enforced condition |
+|---|---|
+| Package location | Its directory must match its declared layer. |
+| Internal graph | The graph must contain no dependency cycle. |
+| Core dependencies | Forbidden capability crates cannot enter core. |
+| External features | Core dependencies cannot enable unapproved default features. |
+| `no_std` packages | Each named package is compiled with default features disabled. |
+| Build scripts | A package with a custom build target must be explicitly approved. |
+| Rust policy | Edition, resolver, MSRV, and development toolchain must match policy. |
+| Ownership | Layer paths and owners must agree with `CODEOWNERS`. |
+| Snapshots | Generated JSON and DOT graphs must equal the committed files. |
+
+The current exception table is empty. If an exception is added,
+`load_architecture_policy` validates its owner, reason, issue, and expiry, then
+fails because expiry enforcement has not been implemented. An exception cannot
+silently weaken the graph.
+
+## The offline boundary follows from the graph
+
+The architecture rule produces a concrete property: the verifier cannot
+acquire facts.
+
+`VerifierContext` contains the values that applications often read
+imperatively:
+
+```rust
+pub struct VerifierContext {
+    configuration: VerifierConfigurationId,
+    composition: CompositionRequirement,
+    trust_anchors: Vec<TrustAnchor>,
+    accepted_registries: AcceptedRegistries,
+    expected_audience: Audience,
+    expected_challenge: Challenge,
+    evaluation_time: Timestamp,
+    assurance_policy: AssurancePolicy,
+    principal_status_snapshot: PrincipalStatusSnapshot,
+    grant_status_snapshot: GrantStatusSnapshot,
+    resource_matcher: ResourceMatcherId,
+    profile_policy: ProfilePolicyId,
+    channel_policy: ChannelBindingId,
+    limits: VerifierLimits,
+}
+```
+
+There is no `Clock`, `HttpClient`, `Database`, or `Resolver` field. Live code
+outside core obtains facts and packages them into immutable evidence or context.
+The same proof, action, context, and executable registry configuration must
+therefore produce the same result in native Rust and WASM.
+
+## Signed meaning requires one byte representation
+
+The architecture constrains code dependencies. Deterministic CBOR constrains
+wire interpretation.
+
+Two byte strings can represent the same abstract CBOR value. That flexibility
+is unacceptable when one machine signs bytes and another verifies them. V1
+therefore admits one encoding for each protocol value.
+
+ADR 0002 fixes the decisions:
+
+- integer map keys;
+- fixed map shapes;
+- definite lengths;
+- minimal integer encodings;
+- sorted, duplicate-free sets;
+- no unknown critical keys;
+- no trailing bytes.
+
+The CDDL is the wire authority. Rust struct layout is not.
+
+The grant schema exposes every attenuation dimension with exact keys:
+
+```text
+grant-statement = {
+  0: protocol-version,
+  1: principal-id,
+  2: principal-id,
+  3: profile-id,
+  4: profile-version,
+  5: permission-set,
+  6: timestamp,
+  7: timestamp,
+  8: audience-set,
+  9: action-constraint,
+  10: budget-ceiling / null,
+  11: uint .le 65535,
+  12: digest32 / null,
+  13: status-policy,
+  14: bounded-id,
+  15: critical-extensions,
+}
+```
+
+Because the map must contain exactly these keys in this order, a decoder cannot
+ignore a field that another implementation treats as meaningful.
+
+## The decoder proves canonicality by reconstruction
+
+The Rust decoder first applies structural and deployment bounds. After decoding
+the typed object, it re-encodes that object and compares the result with the
+original bytes:
+
+```rust
+pub fn decode_bundle(
+    input: &[u8],
+    limits: &VerifierLimits,
+) -> Result<ProofBundle, CodecError> {
+    limits.validate()?;
+
+    if input.len() > limits.get(LimitKind::BundleBytes) {
+        return Err(CodecError::LimitExceeded);
+    }
+
+    let mut decoder = Decoder::new(input);
+    let bundle = bundle_from(&mut decoder, limits)?;
+    ensure_complete(&decoder, input)?;
+
+    if encode_bundle(&bundle)?.as_slice() != input {
+        return Err(CodecError::NonCanonical);
+    }
+
+    Ok(bundle)
+}
+```
+
+A non-minimal integer can decode to the same number, but reconstruction emits
+the minimal form. The byte comparison rejects the original. Appending one
+extra CBOR value fails `ensure_complete`.
+
+The test suite retains both cases:
+
+```rust
+#[test]
+fn equivalent_non_minimal_integer_is_rejected() { /* ... */ }
+
+#[test]
+fn trailing_data_is_rejected() { /* ... */ }
+```
+
+## Bounds are part of the protocol
+
+The CDDL records hard maxima before a verifier allocates or calls an adapter:
+
+- proof bundle: 8 MiB;
+- grants: 256;
+- plan leaves: 128;
+- plan depth: 16;
+- evidence objects: 512;
+- one evidence object: 2 MiB;
+- signatures: 1,024;
+- total work units: 1,000,000.
+
+Deployments may choose lower values in `VerifierContext`. A proof cannot raise
+them.
+
+Adapter work is reserved before execution. A KERI history, signature check,
+resource matcher, or policy handler must declare a conservative maximum and
+report the work it consumed. Exceeding the configured total returns
+`ResourceLimitExceeded`.
+
+The repository therefore constrains two graphs:
+
+1. the build graph cannot make the offline kernel depend on higher-layer
+   capabilities;
+2. the proof graph cannot make verification exceed explicit byte, depth,
+   collection, or work limits.
+
+Part one introduces the authorization model:
+[Authority should only get smaller](/blog/authority-should-only-get-smaller).
+
+Part three follows the replaceable interfaces on either side of the kernel:
+[One authority model, many identity and transport systems](/blog/one-authority-model-many-systems).

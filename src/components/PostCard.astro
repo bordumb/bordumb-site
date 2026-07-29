@@ -1,0 +1,72 @@
+---
+import type { BlogEntry } from "@/utils/content";
+import { formatDate, postSlug, readingTime } from "@/utils/content";
+import TagList from "./TagList.astro";
+
+const { post, featured = false } = Astro.props as { post: BlogEntry; featured?: boolean };
+const minutes = readingTime(post.body ?? "");
+---
+
+<article class:list={["post-card", { featured }]}>
+  <div class="post-meta">
+    <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
+    <span>{minutes} min</span>
+  </div>
+  <h3><a href={`/blog/${postSlug(post)}`}>{post.data.title}</a></h3>
+  <p>{post.data.description}</p>
+  <TagList tags={post.data.tags.slice(0, 3)} />
+</article>
+
+<style>
+  .post-card {
+    padding: 1.4rem 0 1.55rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .post-meta {
+    display: flex;
+    gap: 0.8rem;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+  }
+
+  h3 {
+    max-width: 50rem;
+    margin: 0.7rem 0 0;
+    font-family: var(--serif);
+    font-size: clamp(1.55rem, 3vw, 2.25rem);
+    font-weight: 400;
+    letter-spacing: -0.03em;
+    line-height: 1.08;
+  }
+
+  h3 a {
+    text-decoration: none;
+  }
+
+  h3 a:hover {
+    color: var(--accent);
+  }
+
+  p {
+    max-width: 44rem;
+    margin: 0.7rem 0 1rem;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .featured {
+    padding: clamp(1.5rem, 4vw, 2.7rem);
+    border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+  }
+
+  .featured h3 {
+    font-size: clamp(2.1rem, 5vw, 4rem);
+  }
+</style>

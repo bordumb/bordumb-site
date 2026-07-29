@@ -1,0 +1,219 @@
+---
+import { codeToHtml } from "shiki";
+import { codeHighlightOptions } from "@/utils/code-theme.mjs";
+
+type Example = {
+  language: string;
+  label: string;
+  filename?: string;
+  code: string;
+};
+
+const { label, examples } = Astro.props as { label: string; examples: Example[] };
+const id = `code-group-${Math.random().toString(36).slice(2, 10)}`;
+const rendered = await Promise.all(
+  examples.map(async (example) => ({
+    ...example,
+    html: await codeToHtml(example.code.trim(), {
+      lang: example.language,
+      ...codeHighlightOptions,
+    }),
+  })),
+);
+---
+
+<section class="code-group" data-code-group data-label={label}>
+  <div class="code-toolbar">
+    <div class="code-tabs" role="tablist" aria-label={label}>
+      {rendered.map((example, index) => (
+        <button
+          class="code-tab"
+          type="button"
+          role="tab"
+          id={`${id}-tab-${index}`}
+          aria-controls={`${id}-panel-${index}`}
+          aria-selected={index === 0 ? "true" : "false"}
+          tabindex={index === 0 ? "0" : "-1"}
+          data-language={example.language}
+        >
+          {example.label}
+        </button>
+      ))}
+    </div>
+    <button class="copy-button" type="button" aria-label={`Copy ${label} code`}>
+      <span class="copy-label">Copy</span>
+    </button>
+  </div>
+  {rendered.map((example, index) => (
+    <div
+      class="code-panel"
+      role="tabpanel"
+      id={`${id}-panel-${index}`}
+      aria-labelledby={`${id}-tab-${index}`}
+      data-language={example.language}
+      data-code={example.code.trim()}
+      hidden={index !== 0}
+    >
+      {example.filename && <div class="filename">{example.filename}</div>}
+      <div set:html={example.html} />
+    </div>
+  ))}
+  <span class="copy-status" aria-live="polite"></span>
+</section>
+
+<noscript><style>.code-group .code-panel[hidden] { display: block !important; }</style></noscript>
+
+<script>
+  function activate(group: HTMLElement, language: string, sync = true) {
+    const tabs = [...group.querySelectorAll<HTMLButtonElement>("[role=tab]")];
+    const panels = [...group.querySelectorAll<HTMLElement>("[role=tabpanel]")];
+    if (!tabs.some((tab) => tab.dataset.language === language)) return;
+
+    tabs.forEach((tab) => {
+      const selected = tab.dataset.language === language;
+      tab.setAttribute("aria-selected", String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+    });
+    panels.forEach((panel) => {
+      panel.hidden = panel.dataset.language !== language;
+    });
+
+    if (sync) {
+      localStorage.setItem("preferred-code-language", language);
+      document.querySelectorAll<HTMLElement>("[data-code-group]").forEach((other) => {
+        if (other !== group) activate(other, language, false);
+      });
+    }
+  }
+
+  document.querySelectorAll<HTMLElement>("[data-code-group]").forEach((group) => {
+    const tabs = [...group.querySelectorAll<HTMLButtonElement>("[role=tab]")];
+    const preferred = localStorage.getItem("preferred-code-language");
+    if (preferred) activate(group, preferred, false);
+
+    tabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => activate(group, tab.dataset.language ?? ""));
+      tab.addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        let next = index;
+        if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
+        if (event.key === "ArrowLeft") next = (index - 1 + tabs.length) % tabs.length;
+        if (event.key === "Home") next = 0;
+        if (event.key === "End") next = tabs.length - 1;
+        tabs[next]?.focus();
+        activate(group, tabs[next]?.dataset.language ?? "");
+      });
+    });
+
+    group.querySelector<HTMLButtonElement>(".copy-button")?.addEventListener("click", async () => {
+      const active = group.querySelector<HTMLElement>("[role=tabpanel]:not([hidden])");
+      const status = group.querySelector<HTMLElement>(".copy-status");
+      const label = group.querySelector<HTMLElement>(".copy-label");
+      if (!active?.dataset.code) return;
+      await navigator.clipboard.writeText(active.dataset.code);
+      if (status) status.textContent = "Code copied";
+      if (label) label.textContent = "Copied";
+      window.setTimeout(() => {
+        if (label) label.textContent = "Copy";
+        if (status) status.textContent = "";
+      }, 1600);
+    });
+  });
+</script>
+
+<style>
+  .code-group {
+    position: relative;
+    width: min(calc(100vw - 1.4rem), 62rem);
+    margin: 2.5rem 50%;
+    transform: translateX(-50%);
+    overflow: hidden;
+    border: 1px solid var(--border-strong);
+    border-radius: 0.45rem;
+    background: var(--code-canvas);
+    box-shadow: var(--shadow);
+    font-family: var(--sans);
+  }
+
+  .code-toolbar {
+    display: flex;
+    min-height: 2.8rem;
+    align-items: stretch;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .code-tabs {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .code-tab,
+  .copy-button {
+    border: 0;
+    background: transparent;
+    color: var(--faint);
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 0.64rem;
+  }
+
+  .code-tab {
+    position: relative;
+    min-width: 5rem;
+    padding: 0.8rem 1rem;
+  }
+
+  .code-tab[aria-selected="true"] {
+    color: var(--text);
+  }
+
+  .code-tab[aria-selected="true"]::after {
+    position: absolute;
+    right: 0.8rem;
+    bottom: -1px;
+    left: 0.8rem;
+    height: 1px;
+    background: var(--accent);
+    content: "";
+  }
+
+  .copy-button {
+    padding: 0.7rem 1rem;
+    border-left: 1px solid var(--border);
+  }
+
+  .copy-button:hover {
+    color: var(--accent);
+  }
+
+  .filename {
+    padding: 0.65rem 1rem 0;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.6rem;
+  }
+
+  .code-panel :global(pre) {
+    margin: 0 !important;
+    padding: 1.15rem !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .code-panel :global(code) {
+    font-family: var(--mono);
+  }
+
+  .copy-status {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+</style>

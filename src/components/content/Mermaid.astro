@@ -1,0 +1,108 @@
+---
+const { title, description, source } = Astro.props;
+const id = `mermaid-${Math.random().toString(36).slice(2, 10)}`;
+---
+
+<figure class="diagram" data-mermaid data-source={source} data-id={id}>
+  <figcaption>
+    <strong>{title}</strong>
+    <span>{description}</span>
+  </figcaption>
+  <div class="diagram-stage" role="img" aria-label={`${title}. ${description}`}>
+    <pre>{source}</pre>
+  </div>
+</figure>
+
+<script>
+  import mermaid from "mermaid";
+
+  async function renderDiagrams() {
+    const dark = document.documentElement.dataset.theme === "dark";
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "strict",
+      theme: "base",
+      fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+      themeVariables: {
+        background: dark ? "#191c18" : "#ebe8df",
+        primaryColor: dark ? "#1d332d" : "#dce8e2",
+        primaryTextColor: dark ? "#e9e9e3" : "#171815",
+        primaryBorderColor: dark ? "#7fb8a8" : "#1d5e54",
+        lineColor: dark ? "#a1a49b" : "#64655e",
+        secondaryColor: dark ? "#222620" : "#dfdbd0",
+        tertiaryColor: dark ? "#161916" : "#e9e7e0",
+        fontSize: "14px",
+      },
+    });
+
+    for (const figure of document.querySelectorAll<HTMLElement>("[data-mermaid]")) {
+      const stage = figure.querySelector<HTMLElement>(".diagram-stage");
+      const source = figure.dataset.source;
+      const id = figure.dataset.id;
+      if (!stage || !source || !id) continue;
+      try {
+        const { svg } = await mermaid.render(`${id}-${dark ? "dark" : "light"}`, source);
+        stage.innerHTML = svg;
+      } catch {
+        stage.innerHTML = `<pre>${source.replaceAll("&", "&amp;").replaceAll("<", "&lt;")}</pre>`;
+      }
+    }
+  }
+
+  renderDiagrams();
+  window.addEventListener("site-theme-change", renderDiagrams);
+</script>
+
+<style>
+  .diagram {
+    width: min(calc(100vw - 1.4rem), 62rem);
+    margin: 2.7rem 50%;
+    transform: translateX(-50%);
+    border-top: 1px solid var(--border-strong);
+    border-bottom: 1px solid var(--border);
+  }
+
+  figcaption {
+    display: grid;
+    grid-template-columns: minmax(8rem, 0.35fr) 1fr;
+    gap: 1rem;
+    padding: 0.85rem 0;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--sans);
+    font-size: 0.72rem;
+  }
+
+  figcaption strong {
+    color: var(--text);
+  }
+
+  figcaption span {
+    color: var(--muted);
+  }
+
+  .diagram-stage {
+    display: grid;
+    min-height: 16rem;
+    padding: clamp(1rem, 4vw, 2.5rem);
+    place-items: center;
+    overflow-x: auto;
+    background: color-mix(in srgb, var(--surface) 62%, transparent);
+  }
+
+  .diagram-stage :global(svg) {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .diagram-stage pre {
+    width: 100%;
+    margin: 0;
+    white-space: pre-wrap;
+  }
+
+  @media (max-width: 600px) {
+    figcaption {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

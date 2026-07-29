@@ -1,0 +1,54 @@
+---
+type Turn = { speaker: string; text: string };
+const { turns } = Astro.props as { turns: Turn[] };
+---
+
+<div class="dialogue" aria-label="Dialogue">
+  {turns.map((turn) => (
+    <div class="turn">
+      <p class="speaker">{turn.speaker}</p>
+      <p>{turn.text}</p>
+    </div>
+  ))}
+</div>
+
+<style>
+  .dialogue {
+    margin: 2.6rem 0;
+    border-top: 1px solid var(--border-strong);
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  .turn {
+    display: grid;
+    grid-template-columns: 6rem 1fr;
+    gap: 1rem;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .turn:last-child {
+    border-bottom: 0;
+  }
+
+  .speaker {
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    font-style: normal;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .turn p {
+    margin: 0;
+  }
+
+  @media (max-width: 520px) {
+    .turn {
+      grid-template-columns: 1fr;
+      gap: 0.25rem;
+    }
+  }
+</style>

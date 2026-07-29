@@ -1,0 +1,142 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import PostCard from "@/components/PostCard.astro";
+import { publishedPosts, tagLabel } from "@/utils/content";
+
+const posts = publishedPosts(await getCollection("blog"));
+const featured = posts.find((post) => post.data.featured) ?? posts[0];
+const rest = posts.filter((post) => post.id !== featured?.id);
+const tags = [...new Set(posts.flatMap((post) => post.data.tags))].sort();
+---
+
+<BaseLayout
+  title="Writing — bordumb"
+  description="Technical notes and essays about identity, bounded authority, verification, formal methods, and human trust."
+>
+  <header class="blog-header page-shell">
+    <p class="eyebrow">Writing</p>
+    <h1 class="display">Ideas worth<br /><em>exposing.</em></h1>
+    <div class="blog-intro">
+      <p>
+        Technical notes, long arguments, and unfinished ideas shared before
+        certainty sands away their useful edges.
+      </p>
+      <nav class="tag-nav" aria-label="Browse by tag">
+        <span>Topics</span>
+        {tags.map((tag) => <a href={`/blog/tags/${tag}`}>{tagLabel(tag)}</a>)}
+      </nav>
+    </div>
+  </header>
+
+  <section class="archive page-shell" aria-labelledby="featured-title">
+    <p class="eyebrow">Featured</p>
+    {featured && <PostCard post={featured} featured={true} />}
+  </section>
+
+  <section class="archive page-shell" aria-labelledby="archive-title">
+    <div class="archive-heading">
+      <h2 id="archive-title">All writing</h2>
+      <span>{posts.length.toString().padStart(2, "0")} entries</span>
+    </div>
+    {rest.map((post) => <PostCard post={post} />)}
+  </section>
+</BaseLayout>
+
+<style>
+  .blog-header {
+    padding-top: clamp(5rem, 12vw, 9rem);
+  }
+
+  .display {
+    margin-top: 2rem;
+  }
+
+  .display em {
+    color: var(--accent);
+    font-weight: 400;
+  }
+
+  .blog-intro {
+    display: grid;
+    grid-template-columns: minmax(18rem, 0.7fr) 1fr;
+    gap: 3rem;
+    margin-top: clamp(3rem, 8vw, 6rem);
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--border-strong);
+  }
+
+  .blog-intro > p {
+    max-width: 34rem;
+    margin: 0;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: 1.2rem;
+    line-height: 1.55;
+  }
+
+  .tag-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-content: flex-start;
+  }
+
+  .tag-nav span,
+  .tag-nav a {
+    padding: 0.36rem 0.62rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    text-decoration: none;
+  }
+
+  .tag-nav span {
+    border-color: transparent;
+    color: var(--faint);
+    text-transform: uppercase;
+  }
+
+  .tag-nav a:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .archive {
+    margin-top: clamp(5rem, 10vw, 8rem);
+  }
+
+  .archive > .eyebrow {
+    margin-bottom: 1rem;
+  }
+
+  .archive-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding-bottom: 1rem;
+  }
+
+  .archive-heading h2 {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: 2rem;
+    font-weight: 400;
+    letter-spacing: -0.035em;
+  }
+
+  .archive-heading span {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 650px) {
+    .blog-intro {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -1,0 +1,918 @@
+<section class="vortex-lab" id="vortex-lab" aria-labelledby="lab-step-title">
+  <div class="step-rail" role="group" aria-label="Explanation steps">
+    <button class="step-button is-active" type="button" data-step="0" aria-pressed="true">
+      <span>01</span>
+      Vorticity
+    </button>
+    <button class="step-button" type="button" data-step="1" aria-pressed="false">
+      <span>02</span>
+      Stretching
+    </button>
+    <button class="step-button" type="button" data-step="2" aria-pressed="false">
+      <span>03</span>
+      Alignment
+    </button>
+    <button class="step-button" type="button" data-step="3" aria-pressed="false">
+      <span>04</span>
+      Viscosity
+    </button>
+    <button class="step-button" type="button" data-step="4" aria-pressed="false">
+      <span>05</span>
+      The wall
+    </button>
+  </div>
+
+  <div class="lab-stage">
+    <div class="canvas-wrap">
+      <div class="canvas-meta">
+        <span id="lab-visual-label">A field of local spinning axes</span>
+        <button class="motion-toggle" type="button" aria-pressed="false">
+          Pause motion
+        </button>
+      </div>
+      <canvas
+        id="vortex-canvas"
+        role="img"
+        aria-label="A moving field of arrows showing vorticity, the local axis and strength of rotation."
+      ></canvas>
+      <p class="canvas-caption" id="lab-caption">
+        Arrow direction is the axis of rotation. Arrow length is its strength.
+      </p>
+    </div>
+
+    <div class="lab-copy" aria-live="polite">
+      <p class="step-count" id="lab-step-count">01 / 05</p>
+      <h2 id="lab-step-title">Start with tiny spinning arrows.</h2>
+      <p class="step-copy" id="lab-step-copy">
+        The velocity field says where the fluid moves. Its curl, called
+        vorticity, says how the fluid spins. Each point gets an arrow: direction
+        records the spin axis; length records intensity.
+      </p>
+
+      <div class="equation" aria-label="Vorticity equals the curl of velocity">
+        <span id="lab-equation">ω = ∇ × u</span>
+        <small id="lab-equation-note">motion → local rotation</small>
+      </div>
+
+      <label class="lab-control" id="lab-control" hidden>
+        <span>
+          <span id="lab-control-name">Stretching rate</span>
+          <output id="lab-control-value">0.65</output>
+        </span>
+        <input id="lab-range" type="range" min="0" max="100" value="65" />
+      </label>
+
+      <div class="notice">
+        <span>Watch</span>
+        <p id="lab-notice">
+          A long arrow does not mean the fluid travels in that direction. It
+          means the local rotation around that axis is strong.
+        </p>
+      </div>
+
+      <div class="step-actions">
+        <button class="previous-step" type="button" disabled>Previous</button>
+        <button class="next-step" type="button">Next: stretching</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  type LabStep = {
+    tab: string;
+    visualLabel: string;
+    title: string;
+    copy: string;
+    equation: string;
+    equationNote: string;
+    notice: string;
+    caption: string;
+    aria: string;
+    control?: {
+      name: string;
+      value: number;
+      format: (value: number) => string;
+    };
+  };
+
+  const steps: LabStep[] = [
+    {
+      tab: "vorticity",
+      visualLabel: "A field of local spinning axes",
+      title: "Start with tiny spinning arrows.",
+      copy:
+        "The velocity field says where the fluid moves. Its curl, called vorticity, says how the fluid spins. Each point gets an arrow: direction records the spin axis; length records intensity.",
+      equation: "ω = ∇ × u",
+      equationNote: "motion → local rotation",
+      notice:
+        "A long arrow does not mean the fluid travels in that direction. It means the local rotation around that axis is strong.",
+      caption: "Arrow direction is the axis of rotation. Arrow length is its strength.",
+      aria:
+        "A moving field of arrows showing vorticity, the local axis and strength of rotation.",
+    },
+    {
+      tab: "stretching",
+      visualLabel: "One vortex tube at three moments in time",
+      title: "Stretching amplifies the spin.",
+      copy:
+        "A vortex tube behaves a little like a figure skater pulling in their arms. As the flow lengthens and narrows the tube, its rotation intensifies. Alpha measures the rate of that self-stretching.",
+      equation: "growth rate = α = ξ · Sξ",
+      equationNote: "positive α lengthens the vorticity arrow",
+      notice:
+        "The volume stays roughly fixed: a longer tube must become thinner. The same rotation is concentrated into less cross-section.",
+      caption: "Increase α to see the tube lengthen, narrow, and intensify.",
+      aria:
+        "Three stages of a vortex tube becoming longer, narrower, and more intense as stretching increases.",
+      control: {
+        name: "Stretching α",
+        value: 62,
+        format: (value) => (value / 100).toFixed(2),
+      },
+    },
+    {
+      tab: "alignment",
+      visualLabel: "Neighbouring vortex directions",
+      title: "Alignment removes dangerous interactions.",
+      copy:
+        "The stretching kernel compares nearby vortex directions. When the arrows are parallel, the most dangerous contribution cancels exactly. Misalignment is the part that can still feed production.",
+      equation: "aligned contribution = 0",
+      equationNote: "only misaligned mass remains",
+      notice:
+        "Move toward alignment. The connecting interactions fade because a coherent bundle of vortex lines has less geometric leverage on itself.",
+      caption: "Increase alignment to suppress the highlighted interaction.",
+      aria:
+        "A bundle of vortex arrows becoming parallel, causing highlighted stretching interactions to disappear.",
+      control: {
+        name: "Alignment",
+        value: 34,
+        format: (value) => `${value}%`,
+      },
+    },
+    {
+      tab: "viscosity",
+      visualLabel: "Directional roughness before and after diffusion",
+      title: "Viscosity smooths disagreement.",
+      copy:
+        "When neighbouring directions vary sharply, the field has roughness. Viscosity acts against that roughness. The exact minus sign is the useful fact: diffusion removes directional disorder rather than adding it.",
+      equation: "ξ · Δξ = −‖∇ξ‖²",
+      equationNote: "roughness appears with a dissipative sign",
+      notice:
+        "The right-hand field is the same disturbance after viscosity has shared directional information between neighbours.",
+      caption: "Increase ν to smooth the direction field.",
+      aria:
+        "A rough vortex direction field beside a smoother field, with viscosity controlling the amount of smoothing.",
+      control: {
+        name: "Viscosity ν",
+        value: 58,
+        format: (value) => (value / 100).toFixed(2),
+      },
+    },
+    {
+      tab: "the wall",
+      visualLabel: "The remaining proof dependency",
+      title: "The open question is whether smoothing always pays the bill.",
+      copy:
+        "The transport law, dissipative sign, and alignment cancellation are proved. What remains is to show that viscous smoothing absorbs directional roughness fast enough along every smooth solution.",
+      equation: "Y′ + ν𝒟 ≤ finite-budget growth",
+      equationNote: "prove this → bound exposure → block blow-up",
+      notice:
+        "The hard step is the red node. The arrows above it are already checked implications, so closing that one estimate propagates all the way to the regularity apex.",
+      caption: "The remaining wall sits on a direct path to global regularity.",
+      aria:
+        "A dependency path from the open viscous coercivity estimate through exposure and continuation to global regularity.",
+    },
+  ];
+
+  const root = document.getElementById("vortex-lab");
+  const canvas = document.getElementById("vortex-canvas") as HTMLCanvasElement | null;
+  const context = canvas?.getContext("2d");
+
+  if (root && canvas && context) {
+    const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-step]"));
+    const previous = root.querySelector<HTMLButtonElement>(".previous-step");
+    const next = root.querySelector<HTMLButtonElement>(".next-step");
+    const motion = root.querySelector<HTMLButtonElement>(".motion-toggle");
+    const count = root.querySelector<HTMLElement>("#lab-step-count");
+    const title = root.querySelector<HTMLElement>("#lab-step-title");
+    const copy = root.querySelector<HTMLElement>("#lab-step-copy");
+    const equation = root.querySelector<HTMLElement>("#lab-equation");
+    const equationNote = root.querySelector<HTMLElement>("#lab-equation-note");
+    const notice = root.querySelector<HTMLElement>("#lab-notice");
+    const caption = root.querySelector<HTMLElement>("#lab-caption");
+    const visualLabel = root.querySelector<HTMLElement>("#lab-visual-label");
+    const control = root.querySelector<HTMLElement>("#lab-control");
+    const controlName = root.querySelector<HTMLElement>("#lab-control-name");
+    const controlValue = root.querySelector<HTMLOutputElement>("#lab-control-value");
+    const range = root.querySelector<HTMLInputElement>("#lab-range");
+
+    let activeStep = 0;
+    let value = 50;
+    let elapsed = 0;
+    let previousTime = performance.now();
+    let running = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const colors = () => {
+      const style = getComputedStyle(document.documentElement);
+      return {
+        canvas: style.getPropertyValue("--canvas").trim(),
+        surface: style.getPropertyValue("--surface").trim(),
+        text: style.getPropertyValue("--text").trim(),
+        muted: style.getPropertyValue("--muted").trim(),
+        faint: style.getPropertyValue("--faint").trim(),
+        border: style.getPropertyValue("--border-strong").trim(),
+        accent: style.getPropertyValue("--accent").trim(),
+        warm: style.getPropertyValue("--lab-warm").trim(),
+      };
+    };
+
+    const roundedRect = (
+      ctx: CanvasRenderingContext2D,
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+      radius: number,
+    ) => {
+      ctx.beginPath();
+      ctx.roundRect(x, y, width, height, radius);
+    };
+
+    const line = (
+      ctx: CanvasRenderingContext2D,
+      x1: number,
+      y1: number,
+      x2: number,
+      y2: number,
+      color: string,
+      width = 1,
+      alpha = 1,
+    ) => {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    const arrow = (
+      ctx: CanvasRenderingContext2D,
+      x: number,
+      y: number,
+      angle: number,
+      length: number,
+      color: string,
+      width = 1.5,
+      alpha = 1,
+    ) => {
+      const x1 = x - Math.cos(angle) * length * 0.42;
+      const y1 = y - Math.sin(angle) * length * 0.42;
+      const x2 = x + Math.cos(angle) * length * 0.58;
+      const y2 = y + Math.sin(angle) * length * 0.58;
+      line(ctx, x1, y1, x2, y2, color, width, alpha);
+      const head = Math.min(6, length * 0.24);
+      line(ctx, x2, y2, x2 - Math.cos(angle - 0.55) * head, y2 - Math.sin(angle - 0.55) * head, color, width, alpha);
+      line(ctx, x2, y2, x2 - Math.cos(angle + 0.55) * head, y2 - Math.sin(angle + 0.55) * head, color, width, alpha);
+    };
+
+    const label = (
+      ctx: CanvasRenderingContext2D,
+      text: string,
+      x: number,
+      y: number,
+      color: string,
+      align: CanvasTextAlign = "left",
+      size = 11,
+    ) => {
+      ctx.fillStyle = color;
+      ctx.font = `500 ${size}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+      ctx.textAlign = align;
+      ctx.fillText(text, x, y);
+    };
+
+    const drawVorticity = (
+      ctx: CanvasRenderingContext2D,
+      width: number,
+      height: number,
+      palette: ReturnType<typeof colors>,
+    ) => {
+      const flowX = width * 0.3;
+      const axisX = width * 0.73;
+      const cy = height * 0.51;
+      const maxRadius = Math.min(width * 0.24, height * 0.3);
+
+      for (let ring = 1; ring <= 3; ring += 1) {
+        ctx.save();
+        ctx.globalAlpha = 0.17;
+        ctx.strokeStyle = palette.border;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.ellipse(flowX, cy, maxRadius * ring / 3, maxRadius * ring / 3, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      for (let ring = 0; ring < 3; ring += 1) {
+        const radius = maxRadius * (0.34 + ring * 0.3);
+        const total = 5 + ring * 4;
+        for (let index = 0; index < total; index += 1) {
+          const theta = index / total * Math.PI * 2 + elapsed * (0.2 + ring * 0.025);
+          const x = flowX + Math.cos(theta) * radius;
+          const y = cy + Math.sin(theta) * radius;
+          const intensity = 1 - radius / (maxRadius * 1.5);
+          arrow(ctx, x, y, theta + Math.PI / 2, 13 + intensity * 10, palette.accent, 1.3 + intensity, 0.48 + intensity * 0.45);
+        }
+      }
+
+      label(ctx, "velocity u", flowX, 34, palette.muted, "center");
+      label(ctx, "curl →", width * 0.515, cy + 4, palette.faint, "center", 13);
+
+      ctx.save();
+      ctx.globalAlpha = 0.12;
+      ctx.fillStyle = palette.accent;
+      ctx.beginPath();
+      ctx.ellipse(axisX, cy, maxRadius * 0.62, maxRadius * 0.22, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.strokeStyle = palette.accent;
+      ctx.beginPath();
+      ctx.ellipse(axisX, cy, maxRadius * 0.62, maxRadius * 0.22, 0, Math.PI * 0.15, Math.PI * 1.8);
+      ctx.stroke();
+      ctx.restore();
+
+      for (let index = -2; index <= 2; index += 1) {
+        arrow(
+          ctx,
+          axisX + index * maxRadius * 0.19,
+          cy,
+          -Math.PI / 2,
+          38 + (2 - Math.abs(index)) * 7,
+          index === 0 ? palette.warm : palette.accent,
+          index === 0 ? 2.3 : 1.6,
+          0.65 + (2 - Math.abs(index)) * 0.12,
+        );
+      }
+      label(ctx, "vorticity ω", axisX, 34, palette.muted, "center");
+      label(ctx, "axis + strength", axisX, height - 27, palette.text, "center");
+    };
+
+    const drawTube = (
+      ctx: CanvasRenderingContext2D,
+      width: number,
+      height: number,
+      palette: ReturnType<typeof colors>,
+    ) => {
+      const amount = value / 100;
+      const centers = [0.18, 0.5, 0.82].map((fraction) => width * fraction);
+      const stages = [0, amount * 0.5, amount];
+
+      centers.forEach((cx, index) => {
+        const stretch = stages[index];
+        const tubeHeight = height * (0.3 + stretch * 0.3);
+        const tubeWidth = Math.max(24, width * 0.115 * (1 - stretch * 0.5));
+        const top = height * 0.5 - tubeHeight / 2;
+        const bottom = height * 0.5 + tubeHeight / 2;
+
+        ctx.save();
+        ctx.globalAlpha = 0.1 + stretch * 0.08;
+        ctx.fillStyle = palette.accent;
+        roundedRect(ctx, cx - tubeWidth / 2, top, tubeWidth, tubeHeight, tubeWidth / 2);
+        ctx.fill();
+        ctx.restore();
+
+        ctx.strokeStyle = palette.accent;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.ellipse(cx, top, tubeWidth / 2, 8, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.ellipse(cx, bottom, tubeWidth / 2, 8, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        line(ctx, cx - tubeWidth / 2, top, cx - tubeWidth / 2, bottom, palette.accent, 1.5);
+        line(ctx, cx + tubeWidth / 2, top, cx + tubeWidth / 2, bottom, palette.accent, 1.5);
+
+        for (let marker = 0; marker < 4; marker += 1) {
+          const progress = (marker + 0.5) / 4;
+          const y = top + progress * tubeHeight;
+          const phase = elapsed * (0.8 + stretch) + marker * 1.4;
+          const x = cx + Math.sin(phase) * tubeWidth * 0.28;
+          ctx.fillStyle = palette.warm;
+          ctx.beginPath();
+          ctx.arc(x, y, 2.4 + stretch, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        arrow(ctx, cx, height * 0.5, -Math.PI / 2, 25 + stretch * 50, palette.warm, 2);
+        label(ctx, index === 0 ? "t₀" : index === 1 ? "t₁" : "t₂", cx, height - 27, palette.muted, "center");
+        if (index < 2) {
+          label(ctx, "→", (cx + centers[index + 1]) / 2, height * 0.5 + 4, palette.faint, "center", 15);
+        }
+      });
+    };
+
+    const drawAlignment = (
+      ctx: CanvasRenderingContext2D,
+      width: number,
+      height: number,
+      palette: ReturnType<typeof colors>,
+    ) => {
+      const alignment = value / 100;
+      const columns = width < 540 ? 5 : 7;
+      const rows = 4;
+      const points: Array<{ x: number; y: number; angle: number }> = [];
+      const xGap = width * 0.76 / (columns - 1);
+      const yGap = height * 0.56 / (rows - 1);
+
+      for (let row = 0; row < rows; row += 1) {
+        for (let column = 0; column < columns; column += 1) {
+          const seed = Math.sin(column * 12.7 + row * 38.3) * 0.5;
+          const angle = -Math.PI / 2 + seed * (1 - alignment) * 2.3;
+          points.push({
+            x: width * 0.12 + column * xGap,
+            y: height * 0.21 + row * yGap,
+            angle,
+          });
+        }
+      }
+
+      for (let index = 0; index < points.length - 1; index += 1) {
+        if ((index + 1) % columns === 0) continue;
+        const left = points[index];
+        const right = points[index + 1];
+        const mismatch = Math.min(1, Math.abs(left.angle - right.angle));
+        if (mismatch > 0.08) {
+          line(ctx, left.x, left.y, right.x, right.y, palette.warm, 1 + mismatch * 2, mismatch * 0.65);
+        }
+      }
+
+      points.forEach((point) => arrow(ctx, point.x, point.y, point.angle, 29, palette.accent, 1.8));
+
+      const contribution = Math.round((1 - alignment) * 100);
+      const meterX = width * 0.12;
+      const meterY = height - 30;
+      const meterWidth = width * 0.76;
+      line(ctx, meterX, meterY, meterX + meterWidth, meterY, palette.border, 4);
+      line(ctx, meterX, meterY, meterX + meterWidth * contribution / 100, meterY, palette.warm, 4);
+      label(ctx, `interaction ${contribution}%`, meterX, meterY - 12, palette.muted);
+    };
+
+    const drawDirectionField = (
+      ctx: CanvasRenderingContext2D,
+      width: number,
+      height: number,
+      palette: ReturnType<typeof colors>,
+    ) => {
+      const viscosity = value / 100;
+      const split = width * 0.5;
+      line(ctx, split, height * 0.13, split, height * 0.87, palette.border, 1);
+      label(ctx, "rough field", split * 0.5, 31, palette.muted, "center");
+      label(ctx, `after ν = ${viscosity.toFixed(2)}`, split * 1.5, 31, palette.muted, "center");
+
+      const columns = width < 540 ? 4 : 5;
+      const rows = 4;
+      for (let side = 0; side < 2; side += 1) {
+        const left = side * split;
+        for (let row = 0; row < rows; row += 1) {
+          for (let column = 0; column < columns; column += 1) {
+            const x = left + split * (0.16 + column * 0.68 / (columns - 1));
+            const y = height * (0.22 + row * 0.57 / (rows - 1));
+            const noise = Math.sin(column * 8.2 + row * 19.7) * 1.08;
+            const smoothedNoise = side === 0 ? noise : noise * (1 - viscosity * 0.92);
+            arrow(ctx, x, y, -Math.PI / 2 + smoothedNoise, 25, side === 0 ? palette.warm : palette.accent, 1.7);
+          }
+        }
+      }
+
+      const bracketY = height - 24;
+      line(ctx, width * 0.59, bracketY, width * 0.91, bracketY, palette.accent, 3, 0.25 + viscosity * 0.7);
+      label(ctx, "directional roughness removed", width * 0.75, bracketY - 11, palette.muted, "center");
+    };
+
+    const drawWall = (
+      ctx: CanvasRenderingContext2D,
+      width: number,
+      height: number,
+      palette: ReturnType<typeof colors>,
+    ) => {
+      const nodes = [
+        { label: "GLOBAL REGULARITY", status: "apex", y: 0.13 },
+        { label: "BKM CONTINUATION", status: "known bridge", y: 0.3 },
+        { label: "FINITE STRETCHING", status: "checked implication", y: 0.47 },
+        { label: "FINITE EXPOSURE", status: "checked implication", y: 0.64 },
+        { label: "VISCOUS COERCIVITY", status: "open wall", y: 0.81 },
+      ];
+      const nodeWidth = Math.min(330, width * 0.62);
+      const nodeHeight = 42;
+      const centerX = width * 0.5;
+
+      nodes.forEach((node, index) => {
+        const y = height * node.y;
+        const isWall = index === nodes.length - 1;
+        ctx.save();
+        ctx.fillStyle = isWall ? palette.warm : palette.surface;
+        ctx.globalAlpha = isWall ? 0.17 : 0.92;
+        roundedRect(ctx, centerX - nodeWidth / 2, y - nodeHeight / 2, nodeWidth, nodeHeight, 5);
+        ctx.fill();
+        ctx.restore();
+        ctx.strokeStyle = isWall ? palette.warm : palette.border;
+        ctx.lineWidth = isWall ? 1.7 : 1;
+        roundedRect(ctx, centerX - nodeWidth / 2, y - nodeHeight / 2, nodeWidth, nodeHeight, 5);
+        ctx.stroke();
+        label(ctx, node.label, centerX - nodeWidth / 2 + 14, y + 4, palette.text);
+        label(ctx, node.status, centerX + nodeWidth / 2 - 14, y + 4, isWall ? palette.warm : palette.muted, "right");
+        if (index < nodes.length - 1) {
+          const nextY = height * nodes[index + 1].y;
+          line(ctx, centerX, nextY - nodeHeight / 2, centerX, y + nodeHeight / 2, palette.accent, 1.5);
+          arrow(ctx, centerX, y + nodeHeight / 2 + 4, -Math.PI / 2, 10, palette.accent, 1.5);
+        }
+      });
+    };
+
+    const draw = () => {
+      const rect = canvas.getBoundingClientRect();
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const pixelWidth = Math.max(1, Math.round(rect.width * ratio));
+      const pixelHeight = Math.max(1, Math.round(rect.height * ratio));
+      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
+      }
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.clearRect(0, 0, rect.width, rect.height);
+
+      const palette = colors();
+      context.fillStyle = palette.surface;
+      context.globalAlpha = 0.52;
+      context.fillRect(0, 0, rect.width, rect.height);
+      context.globalAlpha = 1;
+
+      const drawers = [drawVorticity, drawTube, drawAlignment, drawDirectionField, drawWall];
+      drawers[activeStep](context, rect.width, rect.height, palette);
+    };
+
+    const update = (index: number) => {
+      activeStep = Math.max(0, Math.min(steps.length - 1, index));
+      const step = steps[activeStep];
+
+      buttons.forEach((button, buttonIndex) => {
+        const selected = buttonIndex === activeStep;
+        button.classList.toggle("is-active", selected);
+        button.setAttribute("aria-pressed", String(selected));
+      });
+
+      if (count) count.textContent = `${String(activeStep + 1).padStart(2, "0")} / 05`;
+      if (title) title.textContent = step.title;
+      if (copy) copy.textContent = step.copy;
+      if (equation) equation.textContent = step.equation;
+      if (equationNote) equationNote.textContent = step.equationNote;
+      if (notice) notice.textContent = step.notice;
+      if (caption) caption.textContent = step.caption;
+      if (visualLabel) visualLabel.textContent = step.visualLabel;
+      canvas.setAttribute("aria-label", step.aria);
+
+      if (step.control && control && controlName && controlValue && range) {
+        control.hidden = false;
+        value = step.control.value;
+        range.value = String(value);
+        controlName.textContent = step.control.name;
+        controlValue.value = step.control.format(value);
+        controlValue.textContent = step.control.format(value);
+      } else if (control) {
+        control.hidden = true;
+      }
+
+      if (previous) previous.disabled = activeStep === 0;
+      if (next) {
+        next.disabled = activeStep === steps.length - 1;
+        next.textContent = activeStep === steps.length - 1
+          ? "End of path"
+          : `Next: ${steps[activeStep + 1].tab}`;
+      }
+      draw();
+    };
+
+    buttons.forEach((button, index) => button.addEventListener("click", () => update(index)));
+    previous?.addEventListener("click", () => update(activeStep - 1));
+    next?.addEventListener("click", () => update(activeStep + 1));
+    range?.addEventListener("input", () => {
+      value = Number(range.value);
+      const formatter = steps[activeStep].control?.format;
+      if (controlValue && formatter) {
+        controlValue.value = formatter(value);
+        controlValue.textContent = formatter(value);
+      }
+      draw();
+    });
+
+    motion?.addEventListener("click", () => {
+      running = !running;
+      motion.setAttribute("aria-pressed", String(!running));
+      motion.textContent = running ? "Pause motion" : "Resume motion";
+      draw();
+    });
+
+    window.addEventListener("resize", draw);
+    window.addEventListener("site-theme-change", draw);
+
+    const animate = (time: number) => {
+      const delta = Math.min(40, time - previousTime);
+      previousTime = time;
+      if (running) {
+        elapsed += delta / 1000;
+        if (activeStep < 2) draw();
+      }
+      requestAnimationFrame(animate);
+    };
+
+    update(0);
+    motion?.setAttribute("aria-pressed", String(!running));
+    if (motion && !running) motion.textContent = "Resume motion";
+    requestAnimationFrame(animate);
+  }
+</script>
+
+<style>
+  .vortex-lab {
+    --lab-warm: #a65d43;
+    border-top: 1px solid var(--border-strong);
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  :global([data-theme="dark"]) .vortex-lab {
+    --lab-warm: #d58d70;
+  }
+
+  .step-rail {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    border-bottom: 1px solid var(--border);
+  }
+
+  .step-button {
+    display: flex;
+    min-width: 0;
+    gap: 0.65rem;
+    align-items: center;
+    padding: 1rem 0.9rem;
+    border: 0;
+    border-right: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-weight: 650;
+    text-align: left;
+  }
+
+  .step-button:last-child {
+    border-right: 0;
+  }
+
+  .step-button span {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+  }
+
+  .step-button:hover,
+  .step-button.is-active {
+    background: color-mix(in srgb, var(--accent) 7%, transparent);
+    color: var(--text);
+  }
+
+  .step-button.is-active {
+    box-shadow: inset 0 -2px var(--accent);
+  }
+
+  .lab-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(19rem, 0.65fr);
+    min-height: 35rem;
+  }
+
+  .canvas-wrap {
+    display: grid;
+    min-width: 0;
+    grid-template-rows: auto 1fr auto;
+    padding: 1.1rem;
+    border-right: 1px solid var(--border);
+  }
+
+  .canvas-meta,
+  .canvas-caption {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.02em;
+  }
+
+  .motion-toggle {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+  }
+
+  #vortex-canvas {
+    display: block;
+    width: 100%;
+    height: 29rem;
+    margin-block: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+  }
+
+  .canvas-caption {
+    display: block;
+    min-height: 1em;
+    margin: 0;
+  }
+
+  .lab-copy {
+    display: flex;
+    flex-direction: column;
+    padding: clamp(1.5rem, 4vw, 3rem);
+  }
+
+  .step-count {
+    margin: 0 0 2.5rem;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    font-weight: 650;
+    letter-spacing: 0.08em;
+  }
+
+  .lab-copy h2 {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: clamp(2rem, 4vw, 3.5rem);
+    font-weight: 400;
+    letter-spacing: -0.045em;
+    line-height: 0.98;
+  }
+
+  .step-copy {
+    margin: 1.35rem 0 0;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: 1.08rem;
+    line-height: 1.55;
+  }
+
+  .equation {
+    display: grid;
+    gap: 0.45rem;
+    margin-top: 1.6rem;
+    padding-block: 1.1rem;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+  }
+
+  .equation span {
+    color: var(--text);
+    font-size: clamp(0.85rem, 1.7vw, 1rem);
+  }
+
+  .equation small {
+    color: var(--faint);
+    font-size: 0.62rem;
+  }
+
+  .lab-control {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 1.4rem;
+  }
+
+  .lab-control[hidden] {
+    display: none;
+  }
+
+  .lab-control > span {
+    display: flex;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 650;
+  }
+
+  .lab-control output {
+    color: var(--accent);
+    font-family: var(--mono);
+  }
+
+  .lab-control input {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+
+  .notice {
+    display: grid;
+    grid-template-columns: 3.2rem 1fr;
+    gap: 1rem;
+    margin-top: 1.4rem;
+  }
+
+  .notice span {
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    font-weight: 650;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .notice p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1.55;
+  }
+
+  .step-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    margin-top: auto;
+    padding-top: 2rem;
+  }
+
+  .step-actions button {
+    padding: 0.7rem 0;
+    border: 0;
+    border-bottom: 1px solid var(--border-strong);
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-weight: 650;
+  }
+
+  .step-actions button:last-child {
+    color: var(--accent);
+  }
+
+  .step-actions button:disabled {
+    color: var(--faint);
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  @media (max-width: 820px) {
+    .step-rail {
+      grid-template-columns: repeat(5, max-content);
+      overflow-x: auto;
+    }
+
+    .step-button {
+      min-width: 8rem;
+    }
+
+    .lab-stage {
+      grid-template-columns: 1fr;
+    }
+
+    .canvas-wrap {
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    #vortex-canvas {
+      height: 23rem;
+    }
+
+    .lab-copy {
+      min-height: 32rem;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .canvas-meta {
+      align-items: flex-start;
+    }
+
+    #vortex-canvas {
+      height: 19rem;
+    }
+
+    .lab-copy {
+      min-height: 35rem;
+      padding: 1.5rem 1rem;
+    }
+  }
+</style>

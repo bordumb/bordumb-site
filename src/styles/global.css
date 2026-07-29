@@ -1,0 +1,322 @@
+@import "katex/dist/katex.min.css";
+
+:root {
+  color-scheme: light;
+  --canvas: #f4f2ec;
+  --surface: #ebe8df;
+  --surface-strong: #dfdbd0;
+  --text: #171815;
+  --muted: #64655e;
+  --faint: #8b8c84;
+  --border: rgba(23, 24, 21, 0.16);
+  --border-strong: rgba(23, 24, 21, 0.34);
+  --accent: #1d5e54;
+  --accent-soft: #dce8e2;
+  --accent-contrast: #f6faf7;
+  --code-canvas: #e9e7e0;
+  --shadow: 0 24px 80px rgba(28, 30, 26, 0.08);
+  --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino,
+    "Times New Roman", serif;
+  --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --reading: 44rem;
+  --wide: 68rem;
+  --page: 78rem;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #111310;
+  --surface: #191c18;
+  --surface-strong: #222620;
+  --text: #e9e9e3;
+  --muted: #a1a49b;
+  --faint: #7d8178;
+  --border: rgba(233, 233, 227, 0.13);
+  --border-strong: rgba(233, 233, 227, 0.3);
+  --accent: #7fb8a8;
+  --accent-soft: #1d332d;
+  --accent-contrast: #0f1613;
+  --code-canvas: #161916;
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--canvas);
+  color: var(--text);
+  scroll-behavior: smooth;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  font-family: var(--sans);
+  background:
+    radial-gradient(circle at 85% 8%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 28rem),
+    var(--canvas);
+  color: var(--text);
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  top: 1rem;
+  left: 1rem;
+  transform: translateY(-200%);
+  padding: 0.7rem 1rem;
+  border-radius: 0.25rem;
+  background: var(--text);
+  color: var(--canvas);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.page-shell {
+  width: min(calc(100% - 2rem), var(--page));
+  margin-inline: auto;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.display {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(3.25rem, 9vw, 7.7rem);
+  font-weight: 400;
+  letter-spacing: -0.062em;
+  line-height: 0.88;
+}
+
+.section-heading {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(2.2rem, 5vw, 4.25rem);
+  font-weight: 400;
+  letter-spacing: -0.045em;
+  line-height: 0.98;
+}
+
+.section-intro {
+  max-width: 39rem;
+  margin: 1.25rem 0 0;
+  color: var(--muted);
+  font-family: var(--serif);
+  font-size: clamp(1.08rem, 2vw, 1.28rem);
+  line-height: 1.55;
+}
+
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+}
+
+.text-link::after {
+  content: "↗";
+  transition: transform 160ms ease;
+}
+
+.text-link:hover::after {
+  transform: translate(0.14rem, -0.14rem);
+}
+
+.prose {
+  width: min(100%, var(--reading));
+  margin-inline: auto;
+  color: var(--text);
+  font-family: var(--serif);
+  font-size: clamp(1.08rem, 1.4vw, 1.22rem);
+  line-height: 1.78;
+}
+
+.prose > * + * {
+  margin-top: 1.45em;
+}
+
+.prose h2,
+.prose h3,
+.prose h4 {
+  scroll-margin-top: 6rem;
+  font-family: var(--sans);
+  letter-spacing: -0.025em;
+  line-height: 1.16;
+}
+
+.prose h2 {
+  margin-top: 3.5em;
+  font-size: clamp(1.7rem, 3vw, 2.45rem);
+  font-weight: 560;
+}
+
+.prose h3 {
+  margin-top: 2.8em;
+  font-size: 1.35rem;
+  font-weight: 620;
+}
+
+.prose p,
+.prose li {
+  text-wrap: pretty;
+}
+
+.prose a:not(.code-tab):not(.copy-button) {
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.15em;
+}
+
+.prose a:hover {
+  color: var(--accent);
+  text-decoration-color: currentColor;
+}
+
+.prose blockquote {
+  margin: 2.5em 0;
+  padding: 0.25em 0 0.25em 1.4em;
+  border-left: 1px solid var(--accent);
+  color: var(--muted);
+  font-size: 1.16em;
+  font-style: italic;
+}
+
+.prose :not(pre) > code {
+  padding: 0.15em 0.35em;
+  border: 1px solid var(--border);
+  border-radius: 0.2rem;
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 0.82em;
+}
+
+.prose pre {
+  overflow-x: auto;
+  margin: 2em 0;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: var(--code-canvas) !important;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.7;
+}
+
+/*
+ * Shiki writes both palettes into CSS variables, but its inline foreground
+ * defaults to the light palette. Select the palette from the site's explicit
+ * data-theme value so unclassified text receives the correct foreground too.
+ */
+:where(.astro-code, .shiki),
+:where(.astro-code, .shiki) span {
+  color: var(--shiki-light, var(--text)) !important;
+}
+
+[data-theme="dark"] :where(.astro-code, .shiki),
+[data-theme="dark"] :where(.astro-code, .shiki) span {
+  color: var(--shiki-dark, var(--text)) !important;
+}
+
+.prose hr {
+  margin-block: 4rem;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--sans);
+  font-size: 0.88rem;
+}
+
+.prose th,
+.prose td {
+  padding: 0.8rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.prose th {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 0.6rem;
+}
+
+@media (max-width: 640px) {
+  .page-shell {
+    width: min(calc(100% - 1.4rem), var(--page));
+  }
+
+  .display {
+    font-size: clamp(3rem, 18vw, 5.2rem);
+  }
+
+  .prose {
+    font-size: 1.04rem;
+    line-height: 1.7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

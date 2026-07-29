@@ -1,0 +1,228 @@
+---
+title: "A dependency update can change what your program is allowed to do"
+description: "A capsec diff of two published Rust crate versions shows why dependency review should include newly reachable filesystem, network, process, and FFI behavior."
+publishedAt: 2026-07-29
+tags: [rust, authority, dependencies, verification]
+draft: false
+featured: false
+---
+
+import Mermaid from "@/components/content/Mermaid.astro";
+
+A dependency update usually arrives as a small textual change:
+
+```toml
+[dependencies]
+-zip = "2.3"
++zip = "2.4"
+```
+
+The new version may preserve the API your application calls while changing the
+operations reachable behind that API. A helper can begin reading a directory,
+opening a socket, spawning a process, or entering foreign code without adding a
+new parameter to your function.
+
+[`cargo capsec diff`](https://github.com/auths-dev/capsec/blob/main/crates/cargo-capsec/src/diff.rs)
+compares those operations as a separate property of the version:
+
+```sh
+cargo capsec diff zip@2.3.0 zip@2.4.2 --fail-on-new
+```
+
+The command fetches both published sources, scans each version, and compares
+the resulting findings. In this run, paths have been shortened to start at the
+crate's `src` directory:
+
+```text
+zip 2.3.0 → 2.4.2
+
++ FS  src/read/stream.rs:61  std::fs::create_dir_all  extract()
++ FS  src/read.rs:463        std::fs::File::create    make_symlink()
++ FS  src/read.rs:867        std::fs::create_dir_all  extract_internal()
++ FS  src/read.rs:922        std::fs::File::create    extract_internal()
+- FS  src/read.rs:462        File::create             make_symlink()
+- FS  src/read.rs:821        std::fs::File::create    extract()
+
+Summary: 4 added, 2 removed, 6 unchanged
+```
+
+Because the result contains additions, `--fail-on-new` exits with status `1`.
+That exit code can stop an automated update before the new source is accepted
+without review.
+
+## Two additions correspond to changed filesystem behavior
+
+The output is a review queue, so each line still needs source context.
+
+`ZipStreamReader::extract` exists in both versions. In 2.4.2 it begins by
+creating the destination directory before canonicalizing it and writing each
+streamed archive member:
+
+```rust
+pub fn extract<P: AsRef<Path>>(self, directory: P) -> ZipResult<()> {
+    create_dir_all(&directory)?;
+    let directory = directory.as_ref().canonicalize()?;
+
+    // The visitor creates directories, files, and symbolic links
+    // beneath `directory`.
+    self.visit(&mut Extractor(directory, IndexMap::new()))
+}
+```
+
+The existing archive extraction path also changes. Version 2.3.0 canonicalized
+the destination immediately, which required the directory to exist. Version
+2.4.2 first calls `create_dir_all`, then canonicalizes it:
+
+```rust
+fn extract_internal<P: AsRef<Path>>(
+    &mut self,
+    directory: P,
+    root_dir_filter: Option<impl RootDirFilter>,
+) -> ZipResult<()> {
+    create_dir_all(&directory)?;
+    let directory = directory.as_ref().canonicalize()?;
+    // ...
+}
+```
+
+The changelog describes this as “Create directory for extraction if
+necessary.” From an API perspective it is a bug fix. From an authority
+perspective it adds a filesystem write: calling extraction can now create the
+destination directory instead of failing when that directory is absent.
+
+The other two added lines require a different interpretation.
+`File::create` in `make_symlink` became `std::fs::File::create`, and
+`extract()` was refactored into `extract_internal()`. The diff engine matches
+findings by:
+
+```rust
+(
+    finding.function,
+    finding.call_text,
+    finding.category,
+)
+```
+
+Line numbers are intentionally excluded, so ordinary line movement does not
+create an addition. Function renames and changes in call spelling do create
+one. The paired additions and removals around `File::create` therefore describe
+source restructuring, not four wholly new filesystem powers.
+
+The two `create_dir_all` findings remain useful after that classification:
+one records the changed stream-extraction path; the other records the same
+destination-creation behavior in `extract_internal`.
+
+## An authority profile is a set of observed operations
+
+For a crate version \(v\), define its scanned authority profile as:
+
+$$
+A(v) =
+\left\{
+  (\text{function},\ \text{call},\ \text{category})
+  \mid
+  \text{the scanner reports that call in } v
+\right\}.
+$$
+
+The positive difference is:
+
+$$
+\Delta^+ = A(v_{\mathrm{new}}) \setminus A(v_{\mathrm{old}}).
+$$
+
+`cargo capsec diff` prints \(\Delta^+\), the removed set, and the number of
+unchanged keys. It currently recognizes filesystem, network, environment,
+process, and FFI categories.
+
+This profile is not the operating system's permission table. It is evidence
+from source analysis under one scanner configuration. Conditional compilation
+may place platform-specific code in the source even when the current target
+does not compile it. A finding may sit in a test, behind a feature, or in an
+unreachable function. Conversely, syntax-level analysis has documented blind
+spots around some generated and indirect calls.
+
+The diff therefore answers a bounded question:
+
+> Which authority-bearing call sites does the scanner observe in the new
+> source that it did not match in the old source?
+
+It does not answer whether the update is malicious, whether every addition is
+reachable from this application, or whether two syntactically different
+findings represent different behavior.
+
+## Authority propagates through ordinary calls
+
+The direct call can be several crates below the application. capsec retains a
+[three-crate fixture](https://github.com/auths-dev/capsec/tree/main/crates/cargo-capsec/tests/fixtures/cross_crate_chain)
+for this case:
+
+```rust
+// app/src/lib.rs
+pub fn handler() -> Vec<u8> {
+    mid::fetch()
+}
+```
+
+```rust
+// mid/src/lib.rs
+pub fn fetch() -> Vec<u8> {
+    let _stream = leaf::connect().unwrap();
+    vec![1, 2, 3]
+}
+```
+
+```rust
+// leaf/src/lib.rs
+pub fn connect() -> std::io::Result<TcpStream> {
+    TcpStream::connect("127.0.0.1:8080")
+}
+```
+
+Only `leaf::connect` names the socket operation. With dependency propagation
+enabled, the scanner first records `Net` on the leaf's exported function. It
+then treats that export as an authority-bearing call while scanning `mid`, and
+repeats the process while scanning the application. The integration test
+requires both `mid::fetch` and `app::handler` to receive cross-crate network
+findings.
+
+<Mermaid
+  title="Network authority across three crates"
+  description="The application reaches TcpStream::connect through two ordinary function calls. Dependency export maps propagate the network finding back to each public caller."
+  source={`flowchart LR
+    A["application::handler"] --> M["mid::fetch"]
+    M --> L["leaf::connect"]
+    L --> T["TcpStream::connect"]
+
+    T -. "direct NET finding" .-> L
+    L -. "exported authority" .-> M
+    M -. "exported authority" .-> A`}/>
+
+The version diff and dependency propagation answer related but distinct
+questions:
+
+| Command | Question |
+|---|---|
+| `cargo capsec diff crate@old crate@new` | Which scanned call sites changed between two versions of one crate? |
+| `cargo capsec audit --include-deps` | Which authority categories propagate from dependencies into this workspace's callers? |
+
+A lockfile update can be checked at both levels. First compare the changed
+crate versions. Then scan the resolved dependency graph to see which findings
+reach application code:
+
+```sh
+cargo capsec diff zip@2.3.0 zip@2.4.2 --format json
+cargo capsec audit --include-deps --fail-on high
+```
+
+The first command produces structured evidence for the update. The second
+applies the workspace's severity threshold to the resolved graph. Neither
+replaces source review; they select the paths where review has a concrete
+authority change to explain.
+
+## Continue at the function boundary
+
+Dependency analysis finds ambient operations after they enter the graph.
+[A function signature should say what the function can do](/blog/a-function-signature-should-say-what-the-function-can-do)
+shows the complementary mechanism: require filesystem and network authority at
+the Rust call boundary, then use audit to detect direct calls that bypass it.

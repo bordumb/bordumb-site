@@ -1,0 +1,59 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import ProjectCard from "@/components/ProjectCard.astro";
+import { projects } from "@/data/projects";
+---
+
+<BaseLayout
+  title="Selected work — bordumb"
+  description="Selected work on identity, bounded authority, behavioral safety, executable evidence, and formal proof."
+>
+  <section class="work page-shell" aria-labelledby="work-title">
+    <header class="section-top">
+      <div>
+        <p class="eyebrow">Selected work</p>
+        <h1 class="section-heading" id="work-title">Five questions,<br />made executable.</h1>
+      </div>
+      <p class="section-intro">
+        Each project makes a boundary visible: between identity and personhood,
+        permission and action, confidence and evidence, an open problem and a
+        solved one.
+      </p>
+    </header>
+    <div class="projects">
+      {projects.map((project, index) => <ProjectCard project={project} index={index} />)}
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .work {
+    padding-block: clamp(5rem, 10vw, 8rem);
+  }
+
+  .section-top {
+    display: grid;
+    grid-template-columns: 1fr minmax(18rem, 0.55fr);
+    gap: 2rem;
+    align-items: end;
+    margin-bottom: 4rem;
+  }
+
+  .section-intro {
+    margin: 0;
+  }
+
+  .projects {
+    border-bottom: 1px solid var(--border);
+  }
+
+  @media (max-width: 700px) {
+    .section-top {
+      grid-template-columns: 1fr;
+    }
+
+    .section-intro {
+      margin-top: 1.25rem;
+    }
+  }
+</style>
