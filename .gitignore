@@ -5,3 +5,5 @@ dist/
 *.log
 random_stuff.md
 .auths/
+.vercel
+.env*
