@@ -1,0 +1,633 @@
+---
+title: "Why I built Auths"
+description: "I built Auths to separate identity from authority and make exact, bounded authorization portable across systems that will inevitably change."
+publishedAt: 2026-07-30
+tags: [authority, identity, architecture, agents]
+draft: false
+featured: false
+---
+
+import Mermaid from "@/components/content/Mermaid.astro";
+
+I built Auths because I was tired of spending so much time making
+authentication work.
+
+The problems were ordinary. I needed database credentials in one
+environment, an OAuth flow in another, SSO for a third system, and a collection
+of tokens, scopes, callback URLs, roles, certificates, and secrets around all
+of them. None of those mechanisms was unreasonable by itself. Each usually
+represented years of accumulated requirements, compatibility decisions, and
+security work. Vendors often do a nice job given that inheritance.
+
+The experience of assembling them still felt like a Byzantine dance. A useful
+action would sit at the end of a long sequence of conditions: the account had
+to exist in the correct tenant, the identity provider had to emit the expected
+claim, the callback had to match, the token needed the right audience and
+scope, the secret had to be available in the right runtime, the network path
+had to be open, and the application had to interpret every result in the same
+way as the systems before it. If any step disagreed, the action failed. If they
+all agreed, the result often felt less like a coherent design than a
+successfully completed ritual.
+
+<Mermaid
+  title="The Byzantine authentication dance"
+  description="A simple protected action depends on several independently configured systems. Each system solves a legitimate problem, but the application succeeds only when their identities, claims, credentials, network paths, and local policy agree."
+  source={`flowchart LR
+    U["Person or program<br/>needs one action"] --> IDP["Identity provider<br/>account + claim"]
+    IDP --> SSO["SSO policy<br/>tenant + role"]
+    SSO --> O["OAuth exchange<br/>redirect + audience + scope"]
+    O --> VAULT["Secret or token store<br/>runtime access"]
+    VAULT --> NET["Network boundary<br/>VPN + TLS + route"]
+    NET --> APP["Application policy<br/>local interpretation"]
+    APP --> A["Protected action"]
+    IDP -. "one mismatch" .-> F["No action"]
+    SSO -. "one mismatch" .-> F
+    O -. "one mismatch" .-> F
+    VAULT -. "one mismatch" .-> F
+    NET -. "one mismatch" .-> F
+    APP -. "one mismatch" .-> F`}/>
+
+I do not think this condition is inevitable, nor do I think the answer is to
+replace every existing system. OAuth, SSO, database credentials, and
+certificate infrastructure solve real coordination problems. My objection is
+to the experience we have learned to tolerate: useful software should not
+require identity, permission, transport, and secret distribution to become one
+coupled arrangement before it can safely perform a bounded action.
+
+Auths began as an attempt to find a smaller center.
+
+## Berlin gave me permission to throw code away
+
+I had already been kicking the tires on projects involving identity,
+networking, signing, and permissioning when I attended the Local-First
+Conference in Berlin. Local-first software interested me because it asks
+whether software can keep serving its users as infrastructure changes.
+
+Brendan O'Brien's talk about Iroh stayed with me. Iroh lets software address an
+endpoint by a public key and establish an authenticated, encrypted connection
+without making the application manage the usual network topology. The project
+describes this as [dialing keys rather than IP
+addresses](https://www.iroh.computer/blog/v1).
+
+The larger lesson was not a specific transport. It was the road to version
+1.0. Iroh began as a Rust implementation of IPFS, became a broader peer-to-peer
+toolkit, and eventually narrowed itself to direct connections addressed by
+endpoint identifiers. The Iroh team has written that during four years of
+development it [threw away almost as much code as it
+kept](https://www.iroh.computer/blog/the-road-to-iroh-1-0). What remained was
+smaller, more stable, and more useful as a foundation.
+
+That history gave me permission to interpret deletion as progress. I had been
+treating the breadth of my earlier work as an asset because it covered more
+cases. In practice, the components were coupled to decisions I had made before
+I knew which questions mattered. Every additional feature made those decisions
+more expensive to revisit.
+
+The first Auths implementation had a substantial identity system built around
+KERI. KERI contains ideas I still value: controller state can evolve, keys can
+rotate, and a history can establish continuity without reducing identity to
+one permanent secret. The implementation accumulated key-event logs, device
+relationships, signing flows, networking, and product behavior around that
+model.
+
+The mistake was not studying KERI. The mistake was allowing one identity method
+to become the load-bearing shape of the whole system. Identity, signing,
+delegation, storage, networking, and product behavior acquired KERI-shaped
+assumptions. A change to how a principal was identified could travel into code
+that was supposed to answer what that principal could do. A system designed to
+explore trust had made one answer difficult to replace.
+
+I could have kept refactoring outward from that codebase. The safer choice was
+to preserve the lessons and discard the premise that the existing structure
+had earned the right to survive. I started auths-proof around a more agnostic
+question:
+
+> What is the smallest object two systems can exchange so that one can verify
+> the other's authority for an exact action?
+
+That question did not require me to settle the permanent identity system,
+network stack, storage engine, product domain, or cryptographic suite first.
+It required me to separate them.
+
+<Mermaid
+  title="The pivot from one stack to a narrow center"
+  description="The earlier implementation allowed one identity system to shape signing, transport, delegation, and application behavior. Auths Proof keeps authority verification in a narrow center and requires identity methods, transports, cryptographic suites, and domain profiles to meet explicit boundaries."
+  source={`flowchart TB
+    subgraph BEFORE["Earlier implementation"]
+      K["KERI identity model"] --> S["Signing + device model"]
+      K --> N["Network + storage model"]
+      S --> D["Delegation semantics"]
+      N --> D
+      D --> P["Product behavior"]
+    end
+
+    subgraph AFTER["Auths Proof"]
+      I["Principal methods<br/>KERI, raw keys, others"] --> C["Control evidence"]
+      G["Signature suites<br/>Ed25519, P-256, others"] --> C
+      C --> A["Offline authority kernel"]
+      T["Transports<br/>HTTPS, Iroh, file, memory"] --> X["Proof + exact action"]
+      X --> A
+      A --> V["Verified action"]
+      V --> R["Profile-owned execution"]
+    end
+
+    BEFORE -. "keep the lessons;<br/>replace the coupling" .-> AFTER`}/>
+
+## Identity and authority are different questions
+
+The distinction that organizes Auths is simple:
+
+**Identity asks who or what controls a credential. Authority asks what that
+principal is allowed to do.**
+
+Those questions are related, but an answer to one cannot silently become an
+answer to the other.
+
+A valid signature can show that a principal controlled a private key. A KERI
+history can show that a key was valid at a point in a controller's rotation
+history. An authenticated Iroh or TLS connection can identify the peer
+observed by a transport.
+
+None of those facts, by itself, means that the principal may refund a payment,
+read a customer record, deploy a service, or spend five dollars. Identity
+evidence establishes a subject and an assurance level. Authority requires a
+grant, a scope, an audience, a validity period, an exact action, and a set of
+conditions under which that action is allowed.
+
+The reverse also holds. A permission such as `records.write` does not identify
+the key that may exercise it or establish whether the presenter controls that
+key. A usable system joins both questions at an explicit boundary.
+
+This is why I resist using *authentication* as a name for the entire problem.
+The word is often asked to cover identity proof, session establishment,
+delegation, policy evaluation, credential distribution, and execution. Once
+those mechanisms share a label, they tend to share middleware. Once they share
+middleware, changing one can quietly change the meaning of the others.
+
+Auths instead asks an identity method for bounded control evidence. It asks an
+authority chain whether each grant stays within its parent. It asks an
+application profile to describe the exact proposed action. It asks a verifier
+to supply its own trusted roots, time, registries, limits, and policy. Only
+after those independent statements agree does the result contain an action
+that the application may execute.
+
+<Mermaid
+  title="Identity evidence meets exact authority"
+  description="Principal and signature systems establish control of a signed statement. A separate authority path narrows grants and binds them to the application's exact canonical action. Execution becomes reachable only where both paths meet."
+  source={`flowchart LR
+    subgraph WHO["Who controls the statement?"]
+      PE["Principal evidence"] --> PM["Admitted principal method"]
+      SS["Signed bytes"] --> SV["Admitted signature suite"]
+      PM --> CE["Control evidence"]
+      SV --> CE
+    end
+
+    subgraph WHAT["What may happen?"]
+      ROOT["Locally trusted root"] --> G1["Grant"]
+      G1 --> G2["Narrower grant"]
+      G2 --> EA["Exact canonical action"]
+    end
+
+    CE --> CHECK["Offline verification"]
+    EA --> CHECK
+    CTX["Verifier context<br/>audience + time + policy + limits"] --> CHECK
+    CHECK -->|"authorized"| VA["Sealed verified action"]
+    CHECK -->|"denied or indeterminate"| STOP["No protected effect"]
+    VA --> EXEC["Profile-owned executor"]`}/>
+
+That separation also makes a basic rule visible: delegated authority should
+only get smaller. A child can remove permissions, shorten validity, reduce
+audiences, lower a budget, constrain an action body, or reduce the remaining
+delegation depth. It cannot use delegation to create an authority its parent
+did not possess. I have described the verifier mechanics in [Authority should
+only get smaller](/blog/authority-should-only-get-smaller); the important point
+for this essay is that identity continuity and authority attenuation remain
+separate claims.
+
+## The unit of authorization should be the action
+
+Most credential systems give software a reusable capability and rely on that
+software to behave within it. A database credential might permit a family of
+queries. An OAuth token might carry a set of scopes. An API key might identify
+an account while application code supplies the actual restrictions. This model
+is often practical, especially when a trusted application performs many
+related operations.
+
+It becomes uncomfortable when the software holding the credential should not
+receive all of the authority the credential implies.
+
+An AI agent makes this mismatch easy to see. To let an agent refund one order,
+the straightforward integration often gives it a token capable of reaching a
+refund API, then asks the prompt, tool wrapper, or application code to preserve
+the intended amount and target. The token and the intention are separate
+objects. If the agent is confused, a tool is buggy, a prompt is injected, or a
+dependency leaks the token, the system has exposed more authority than the
+task required.
+
+The same mismatch exists without AI. A queue worker, deployment job, scheduled
+script, or desktop application may need one action while receiving credentials
+for a class of actions. Agents increase the urgency because they generate
+behavior dynamically, but they did not create the architectural problem.
+
+Auths treats the proposed action as an input to authorization rather than a
+detail supplied after it. An application profile converts its native request
+into a canonical representation. The proof and presentation bind to those
+exact bytes. The verifier checks that the delegated authority covers the
+corresponding capability and resource. The executor then receives the verified
+action from the authorized result, not a parallel copy of the untrusted
+request.
+
+“Exact” is doing a lot of work here. For an HTTP API, it can include the
+operation, route, record identifier, normalized body, audience, challenge,
+expiry, and verifier configuration. For a Stripe refund, it can include the
+account, payment, amount, currency, reason policy, and idempotency commitment.
+Changing a field does not produce a nearby authorized action. It produces
+different bytes that require their own authority.
+
+This does not mean every grant must authorize only one immutable event. A
+bounded policy can permit a set of actions and a budget can cover several
+executions. The constraint is that the set is explicit and each execution is
+checked as an exact member of it. “May create three records matching this
+schema before this time” is a different object from “has the records API
+token.”
+
+The distinction reduces what software must be trusted to remember. The agent
+does not have to preserve an instruction that exists only in natural language.
+The server does not have to infer whether a broad credential was used for the
+human's intended action. The proof carries the boundary, and the verifier
+checks it before protected storage or provider credentials become reachable.
+
+## The records demo showed that transport is plumbing
+
+I built the REST API authorization demo because an architectural distinction is
+more credible when it survives an ordinary application.
+
+The application manages fictional customer records through a conventional HTTP
+interface. The useful result looks like normal application data. The
+difference is what happens before the handler touches protected storage. It is
+easiest to see by following the same proposed record operation through two
+authorization paths.
+
+In the conventional path, authority is attached to a reusable credential
+before the exact request exists:
+
+<Mermaid
+  title="A traditional REST API authorizes a reusable credential"
+  description="An administrator gives the caller a reusable bearer credential. The API interprets its account, scopes, and local policy before allowing the requested operation to reach protected storage."
+  source={`flowchart LR
+    ADMIN["Administrator or identity system"] -->|"issues reusable credential"| CALLER["Application or agent"]
+    CALLER -->|"HTTP request + bearer token"| API["REST API"]
+    API --> LOOKUP["Credential lookup<br/>account + scopes + policy"]
+    LOOKUP -->|"permitted category of operations"| EXEC["API executor"]
+    EXEC --> DATA["Protected storage"]
+    LOOKUP -->|"not permitted"| STOP["Reject request"]`}/>
+
+The API still checks the request, but the credential and proposed operation
+remain separate. The same token can accompany many requests within its scope.
+Auths moves the boundary by bringing the proof and exact request together at
+the verifier:
+
+<Mermaid
+  title="An Auths REST API authorizes the exact action"
+  description="The caller carries a bounded proof and request-bound presentation instead of a reusable API credential. Local verification binds authority to the canonical action before durable claim and profile-owned execution can reach protected storage."
+  source={`flowchart LR
+    ISSUER["Trusted issuer or policy owner"] -->|"authorizes bounded authority"| PROOF["Auths proof"]
+    CALLER["Application or agent"] --> ACTION["Exact canonical action"]
+    PROOF --> PRESENT["Request-bound presentation"]
+    ACTION --> PRESENT
+    PRESENT -->|"proof + exact action"| API["REST API"]
+    API --> VERIFY["Local Auths verifier"]
+    VERIFY -->|"denied or indeterminate"| STOP["No protected effect"]
+    VERIFY -->|"authorized verified action"| CLAIM["Durable one-time claim"]
+    CLAIM --> EXEC["Profile-owned executor"]
+    EXEC --> DATA["Protected storage"]`}/>
+
+The caller does not receive a reusable records API key. It presents a proof and
+a short-lived, request-bound presentation for one typed create or read action.
+The service reconstructs the canonical action, verifies it locally, reserves
+any bounded capacity, and only then reaches the native records executor. A
+denial cannot take a shortcut through the database because the database-facing
+command is constructed from the authorized result.
+
+The same action can arrive through HTTPS or Iroh. Switching transports changes
+the delivery evidence recorded in the receipt; it does not change the
+principal, grant, action, executor audience, or authority decision. An
+authenticated channel remains useful, but it does not grant permission merely
+by delivering the bytes.
+
+This was a concrete test of agnosticism. If adding Iroh had required a second
+authorization model, transport had leaked into authority. If the HTTP handler
+could execute an arbitrary method and URL from a generic authorized envelope,
+the profile had leaked execution into a supposedly reusable core. The demo
+therefore supports only closed record operations with typed action bodies. It
+shares the proof-verification mechanism while leaving record semantics with
+the records application.
+
+The receipts taught another lesson. An authorization decision, an attempted
+effect, and an observation are different facts. A valid proof can authorize a
+write that later fails; a provider can accept a request whose response is lost.
+Combining those events into one “success” value makes recovery depend on
+guesswork.
+
+The records demo records delivery, decision, effect, and observation
+separately. That evidence does not make execution infallible. It makes the
+boundary between what was authorized and what happened inspectable.
+
+## Stripe forced the abstractions to become honest
+
+The Stripe work was more demanding because money makes hidden state transitions
+hard to ignore.
+
+The contrast from the records demo becomes more consequential here because the
+provider credential can create financial effects. In a conventional Stripe
+integration, the reusable secret stays on the server while application code
+decides which requested operation may use it:
+
+<Mermaid
+  title="A traditional Stripe integration mediates a reusable provider secret"
+  description="A person, agent, or workflow proposes a payment operation. Server-side application policy decides whether to use its reusable Stripe credential, constructs the provider request, and interprets the resulting financial effect."
+  source={`flowchart LR
+    USER["Person, agent, or workflow"] -->|"proposed payment operation"| APP["Application runtime"]
+    ADMIN["Operator or secret manager"] -->|"provisions reusable Stripe secret"| APP
+    APP --> POLICY["Local authorization<br/>and request construction"]
+    POLICY -->|"Stripe secret + provider request"| STRIPE["Stripe API"]
+    STRIPE --> EFFECT["Payment effect"]
+    STRIPE --> RESULT["Provider response"]
+    RESULT --> APP
+    POLICY -->|"request rejected"| STOP["No provider call"]`}/>
+
+Stripe still enforces the account and credential's provider-side permissions,
+but the reusable credential and the intended business action remain separate.
+Auths changes the order: the exact profile action must be verified and claimed
+before the corresponding credential boundary can be crossed.
+
+<Mermaid
+  title="An Auths Stripe integration makes the credential reachable last"
+  description="A bounded proof and exact profile action enter local verification first. Only an authorized verified command can reserve capacity, acquire the matching profile-scoped credential, and reach a closed Stripe gateway; uncertain outcomes retain capacity for reconciliation."
+  source={`flowchart LR
+    ISSUER["Trusted issuer or policy owner"] -->|"bounded authority"| PROOF["Auths proof"]
+    USER["Person, agent, or workflow"] --> ACTION["Exact profile action"]
+    PROOF --> VERIFY["Local Auths verifier"]
+    ACTION --> VERIFY
+    VERIFY -->|"denied or indeterminate"| STOP["No credential<br/>no Stripe call"]
+    VERIFY -->|"verified command"| CLAIM["Durable claim<br/>and capacity reservation"]
+    CLAIM --> CRED["Profile-scoped credential"]
+    CRED --> GATEWAY["Closed profile gateway"]
+    GATEWAY --> STRIPE["Stripe API"]
+    STRIPE --> RECEIPT["Decision, transition,<br/>and observation receipts"]
+    STRIPE -->|"response missing"| UNKNOWN["Outcome unknown<br/>retain capacity + reconcile"]`}/>
+
+At first glance, refunding, collecting, authorizing, capturing, and cancelling
+a payment all appear to belong in one Stripe integration. They use the same
+provider, similar identifiers, related API conventions, and often the same
+underlying account. That similarity creates strong pressure to build a generic
+payment operation with an operation tag, a shared executor, a shared credential
+provider, and a receipt union that grows whenever a new profile is added.
+
+The implementation briefly moved in that direction. Adding authorization
+receipt variants to a global receipt union broke the already completed
+collection demo because collection code now had to understand authorization
+variants. A credential boundary exposed one mutation credential for an account
+without encoding whether it was intended for collection, authorization,
+capture, or cancellation.
+
+Those were not aesthetic complaints. The compiler supplied evidence that one
+profile could change another, and the type signature supplied evidence that
+the credential boundary did not enforce its claimed least privilege.
+
+The correction was to make each effect own a closed vertical slice. Collection
+has a collection action, evaluator, verified command, credential scope,
+gateway, lifecycle transitions, and receipt family. Authorization has a
+different set. Capture and cancellation have their own types as well. Shared
+code is limited to mechanisms whose semantics are genuinely identical:
+canonical hashing, narrow identifier types, safe secret storage, HTTP request
+machinery, and durable storage primitives.
+
+This creates some visible duplication. That duplication is cheaper than an
+abstraction that lets a capture credential cross into cancellation or forces a
+collection consumer to handle future subscription receipts. The design uses
+the type system to make those crossings impossible rather than relying on an
+operation tag and a runtime branch to remember the distinction.
+
+Stripe also made uncertain outcomes unavoidable. Suppose the application sends
+an exact payment request and the network fails before the response arrives.
+Retrying blindly can create a second effect. Releasing the reserved budget can
+allow other work to spend capacity that the first request may already have
+consumed. Declaring success invents an observation the system does not have.
+
+The conservative state is *outcome unknown*. Capacity remains reserved while a
+profile-specific reconciliation path asks Stripe for fresh evidence. Provider
+idempotency helps, but it does not replace the application's durable claim,
+reservation, and receipt history. Authorization answers whether the request
+may be attempted. Reconciliation answers what the provider now says happened.
+
+This is the kind of lesson I want Auths to absorb. The project is not agnostic
+because its abstractions are complete. It is agnostic because a new domain is
+allowed to disprove them. When the receipt union coupled profiles, the union
+did not deserve to survive. When the credential port failed to express scope,
+the port had to become more specific. The small center should earn its
+generality through several independent vertical systems, not by being named
+generic in advance.
+
+## Agnostic does not mean vague
+
+There is a weak form of flexibility in which every component becomes an
+interface, every input becomes an untyped map, and every behavior can be
+selected by configuration. Such a system can claim to support anything because
+its core no longer says enough to reject anything. I do not want that kind of
+agnosticism.
+
+Auths has an opinionated invariant: untrusted bytes must not become executable
+authority except through a bounded verification path. Trust roots come from
+the verifier, not the proof. Delegation cannot widen authority. Canonical
+actions must match exactly. Unknown algorithms and missing evidence cannot
+silently fall back. Denied and indeterminate results do not contain an
+executable action. The core performs no network, filesystem, database,
+environment, clock, randomness, private-key, or provider operation.
+
+Flexibility belongs around those constraints. Principal methods return bounded
+control evidence. Signature suites and their configurations are explicitly
+accepted. Transports deliver proofs without reinterpreting permission. Product
+profiles own the translation between native domain data and exact canonical
+actions.
+
+The implementations are not accepted merely because they satisfy an interface.
+They are closed, identified, configured, and committed into the verifier's
+trusted context. That prevents “pluggable” from becoming “whatever code was
+present at runtime.”
+
+## Software should remain useful as its surroundings change
+
+Ink & Switch's work on [malleable
+software](https://www.inkandswitch.com/essay/malleable-software/) gave me
+another way to think about this objective. Their essay argues that software
+should adapt to people's workflows and that tools should compose rather than
+forcing every use into the boundaries of a sealed application. Auths concerns
+a lower layer, but it faces the same pressure from change.
+
+Identity systems change. Organizations migrate providers. Networks move
+between centralized services, direct connections, and local operation.
+Cryptographic recommendations age. Product domains acquire distinctions that a
+generic permission model did not anticipate. Software that binds all of those
+choices into one authorization path can be locally convenient and globally
+rigid.
+
+I want authority to remain legible while the surroundings move.
+
+Today, an Auths proof may use Ed25519 signatures and travel over HTTP. Another
+application may deliver the same class of proof over Iroh. Five years from now,
+a deployment may need a post-quantum signature suite or a principal method that
+does not exist today. I do not know which of those paths will matter. That
+uncertainty is one reason to keep them separate now.
+
+This is not a promise that future algorithms can be dropped in without design
+work. Post-quantum signatures have different sizes and costs; supporting them
+may require a new protocol version. Agnosticism means the change has a named
+boundary and cannot quietly redefine existing authorization. It does not mean
+the future is free.
+
+<Mermaid
+  title="A stable authority rule with changeable surroundings"
+  description="The center preserves exact-action verification and monotonic attenuation. Identity methods, signature suites, transports, storage, and product profiles can evolve through explicit versioned boundaries without silently redefining the center."
+  source={`flowchart TB
+    P1["Principal methods<br/>raw key · KERI · future methods"] --> K["Authority kernel<br/>exact action · attenuation · explicit trust"]
+    S1["Signature suites<br/>Ed25519 · P-256 · post-quantum"] --> K
+    T1["Transports<br/>HTTPS · Iroh · file · future channels"] --> K
+    K --> V["Verified action"]
+    V --> D1["Records profile"]
+    V --> D2["Stripe profiles"]
+    V --> D3["Future domains"]
+    D1 --> ST["Profile-owned state + execution + receipts"]
+    D2 --> ST
+    D3 --> ST`}/>
+
+There is a useful tension here. A protocol needs stable meaning if independent
+implementations are going to agree. A research project needs enough
+flexibility to discover that its present model is wrong. I am trying to hold
+both conditions by keeping the invariant small, versioning the wire contract,
+and refusing to make product-specific semantics part of the authority kernel.
+
+## AI raises the stakes without defining the project
+
+AI agents are an important audience for Auths because they make delegated
+action a routine engineering problem. An agent can choose tools, compose
+requests, and act across systems faster than a human can review each step. If
+the only practical way to enable that work is to place broad reusable
+credentials in the agent's environment, the authority exposed to the agent
+will often be much larger than the action a person intended.
+
+Exact-action proofs offer another shape. A person, policy engine, or trusted
+issuer can authorize a bounded action. The agent can carry the proof and
+propose the committed request without receiving the provider credential that
+ultimately performs it. The service verifies the proof, makes a durable claim,
+and reaches the credential only on the authorized branch. A compromised agent
+can still misuse whatever exact authority it holds, but the blast radius can
+be closer to the assigned work.
+
+That claim should remain narrow. Auths does not make model output trustworthy.
+It does not solve prompt injection, prove that an action was wise, or infer a
+person's intent from an ambiguous instruction. It provides a place where a
+separately established decision about authority can become machine-checkable
+before an effect.
+
+The same mechanism works when no model is present. A deterministic service,
+scheduled workflow, command-line tool, or mobile application can carry a proof.
+If Auths required AI to justify its architecture, it would be coupled to
+another surface likely to change.
+
+AI is therefore an accelerant, not the foundation. It creates more software
+actors and makes broad ambient credentials more visibly hazardous. The
+protocol should still be useful anywhere one system needs to prove to another
+that a particular action falls within delegated authority.
+
+## I want an open protocol, not another mandatory checkpoint
+
+The vision for Auths is an open protocol. I do not want every authorization
+decision to require an Auths account, an Auths server, or a network request to
+infrastructure I control.
+
+The verifier is deliberately offline and effect-free. Its inputs are bytes:
+the proof, the canonical action, and the verifier's trusted context. The
+context contains the roots, accepted registries, evaluation time, status
+snapshots, assurance requirements, and resource limits needed to evaluate the
+proof. If two implementations accept the same protocol version and trusted
+inputs, they should be able to inspect the same decision without consulting a
+central authority service.
+
+Offline does not mean trustless. Someone still chooses roots. Someone still
+decides which principal methods and algorithms are acceptable. Status
+information must come from somewhere, and stateful applications still need
+replay protection, budgets, credentials, reconciliation, and durable receipts.
+The point is not to remove trust. The point is to make each trust decision an
+explicit input rather than an ambient dependency hidden behind a vendor call.
+
+An open wire contract also permits local disagreement. Organizations can
+accept different identity evidence, transports, and status requirements
+without maintaining different meanings for delegation and exact action
+binding.
+
+This is the part of the vision that reaches beyond eliminating authentication
+chores. I want software actors to carry evidence of authority across boundaries
+without requiring every participant to join the same identity platform,
+network, or product ecosystem. I want a verifier to explain which exact action
+was authorized, by which narrowing chain, under which local context. I want the
+application to retain evidence that separates the decision from the effect and
+the later observation.
+
+That would not eliminate configuration. No serious trust system can. It would
+move configuration toward explicit choices that can be inspected, committed,
+replayed, and changed deliberately.
+
+## The project is a way to explore trust
+
+Auths is a personal project for now. That gives me freedom to keep the vision
+broad while making the claims narrow.
+
+The broad question is where the boundaries of trust should live in
+technological space: which facts establish the actor, which grants establish
+authority, which bytes define the action, and what must remain fixed so that
+the rest can change?
+
+The narrow claims come from implementations. The records demo can show that
+one exact create or read action remains the same across HTTP and Iroh delivery.
+The Stripe profiles can show that authorization must precede provider
+credentials, that payment effects need separate lifecycle semantics, and that
+unknown outcomes require reconciliation rather than optimism. The offline
+kernel can show that untrusted inputs move through sealed verification stages
+before a verified action exists. Each demo is allowed to prove less than the
+whole vision.
+
+I expect more code to be thrown away. That is now part of the method rather
+than evidence that the method failed. A shared abstraction that breaks when a
+new domain arrives was not yet shared. A boundary that claims least privilege
+without expressing it in its types was not yet a least-privilege boundary. A
+transport that changes authority is not merely a transport. The project
+advances when those mistakes become concrete enough to remove.
+
+I also expect some current choices to last. Identity and authority answer
+different questions. Delegation should not widen power. The proposed action
+should be authorized before the protected effect. Trust should enter through
+visible inputs. Product semantics should remain with the product. An
+observation should not be invented because the system wants a simpler state
+machine.
+
+Those are the few components I want to earn the right to call Auths.
+
+The original frustration was practical: I wanted authentication and
+authorization to stop feeling like a ritual whose steps had to align by
+accident. The project that followed became more ambitious, but not because it
+promises to replace every identity provider, credential, network, or policy
+engine. Its ambition comes from refusing to let any one of them own the entire
+meaning of authority.
+
+If Auths succeeds, a developer should be able to choose how a principal is
+identified, how a proof is delivered, which algorithms are trusted, and which
+domain performs the effect while preserving one inspectable answer to a
+smaller question:
+
+> Was this principal given authority for this exact action, under the
+> conditions this verifier actually accepts?
+
+That is the foundation I wanted when I was still jumping through the hoops. It
+is small enough to implement, strict enough to test, and open enough to keep
+exploring what trust between software systems could become.

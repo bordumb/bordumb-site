@@ -1,0 +1,830 @@
+---
+title: "A proof should break when the program changes"
+description: "How Auths Proof translates its production Rust authority kernel through Charon and Aeneas, refines it against a readable Lean specification, and makes semantic drift fail CI."
+publishedAt: 2026-07-30
+tags: [formal-methods, rust, lean, authority]
+draft: false
+featured: false
+---
+
+import Mermaid from "@/components/content/Mermaid.astro";
+
+A formal model can be correct while the program is wrong.
+
+That sentence is not an objection to formal methods. It is the reason I care
+about the boundary between a formal model and production code.
+
+Suppose I write a clean Lean definition of delegation, prove that authority
+only attenuates, and then implement the verifier separately in Rust. The Lean
+theorem may be valid. The Rust test suite may be green. Neither fact, by
+itself, establishes that the Rust evaluator implements the relation I proved.
+The two artifacts can disagree because I misunderstood one of them, because a
+later refactor changed only one, or because they chose different answers for a
+small case such as an absent budget or the first diagnostic returned after
+several checks fail.
+
+For [Auths Proof](https://github.com/auths-dev/auths-proof), I wanted a
+stronger maintenance property:
+
+$$
+\text{relevant Rust change}
+\;\Longrightarrow\;
+\text{proof evidence must be re-established}.
+$$
+
+The formal layer should not be an illustration that remains green beside a
+changing program. It should be connected tightly enough to production that a
+semantic change can invalidate the connection. Continuous integration should
+then refuse the change until the generated translation, the refinement proof,
+and the declared assurance claim agree again.
+
+This post explains the mechanism we use to approach that property. Charon
+extracts a representation of selected production Rust. Aeneas translates that
+representation into executable Lean definitions. Handwritten Lean semantics
+state the authority relation in mathematical terms. Refinement theorems connect
+the generated evaluator to those semantics. CI reproduces the translation,
+audits theorem statements and axioms, checks source closure, and runs several
+lower-level bridges around the proof.
+
+It is a deliberately bounded claim. We are not proving all of Auths Proof, all
+of Rust, or all of authorization. We are proving particular properties about
+particular production functions over validated values, under an explicit
+toolchain and representation boundary.
+
+## The property is attenuation
+
+The core authority rule is simple to say:
+
+> A delegation may preserve or reduce authority. It may not expand it.
+
+An authority scope contains more than a permission name. In the current rich
+model, a scope \(S\) contains:
+
+$$
+S =
+\left(
+P,\ M,\ W,\ A,\ C,\ B,\ T,\ Q
+\right),
+$$
+
+where:
+
+- \(P\) is the profile scope;
+- \(M\) is a finite set of permissions;
+- \(W = [s,e]\) is an inclusive validity window;
+- \(A\) is a finite set of audiences;
+- \(C\) is a constraint over canonical action-body digests;
+- \(B\) is an optional budget ceiling;
+- \(T\) is a status policy; and
+- \(Q\) is an assurance policy.
+
+For a proposed child scope \(S_c\) and its parent \(S_p\), structural
+attenuation is a conjunction:
+
+$$
+\begin{aligned}
+S_c \preceq S_p \iff {}&
+P_c \preceq_P P_p
+\land M_c \subseteq M_p \\
+&\land s_p \leq s_c
+\land e_c \leq e_p \\
+&\land A_c \subseteq A_p
+\land C_c \preceq_C C_p \\
+&\land B_c \preceq_B B_p
+\land T_c \preceq_T T_p
+\land Q_c = Q_p.
+\end{aligned}
+$$
+
+Delegation adds chain and depth conditions. If \(G\) is the proposed grant and
+\(\Sigma_p\) is the parent chain state, then an accepted edge requires:
+
+$$
+\begin{aligned}
+\operatorname{linked}(\Sigma_p,G)
+\iff {}&
+G.\mathrm{issuer} = \Sigma_p.\mathrm{subject} \\
+&\land
+G.\mathrm{parent} = \Sigma_p.\mathrm{lastGrant},
+\end{aligned}
+$$
+
+and:
+
+$$
+0 < d_p
+\quad\land\quad
+d_c < d_p
+\quad\land\quad
+S_c \preceq S_p.
+$$
+
+These are not only predicates used to accept or reject a grant. They determine
+the unique accepted next state. The root remains unchanged, the subject
+becomes the grant subject, the accepted scope becomes the grant's attenuated
+scope, the depth becomes \(d_c\), and the terminal grant identifier becomes the
+new grant identifier.
+
+The Lean semantics say this directly:
+
+```lean
+def delegates
+    (parent : ChainState v)
+    (grantId : GrantId v)
+    (grant : Grant v)
+    (child : ChainState v) : Prop :=
+  linked parent grant ∧
+  ∃ checks : scopeDepthChecks parent grant,
+    child = acceptedNextState parent grantId grant checks
+```
+
+This definition is useful because it is small enough to reason about. It is
+not sufficient because the shipping verifier does not execute this Lean
+definition.
+
+## An independent proof can prove the wrong program
+
+Consider a narrow example. A parent allows `read` and `refund`, while a child
+asks only for `refund`. The intended relation is:
+
+$$
+M_c \subseteq M_p.
+$$
+
+A Rust implementation can accidentally reverse the arguments:
+
+```rust
+// Wrong: asks whether the parent is a subset of the child.
+permission_set_is_subset(parent.permissions, child.permissions)
+```
+
+The handwritten Lean theorem about \(M_c \subseteq M_p\) remains true. It says
+nothing about the typo unless some bridge connects the actual Rust expression
+to the Lean expression being proved.
+
+Tests can catch a selected reversed-subset example, but a test suite samples
+inputs:
+
+$$
+\{x_1,x_2,\ldots,x_n\} \subsetneq \mathcal{X}.
+$$
+
+A theorem quantifies over its modeled domain:
+
+$$
+\forall x \in \mathcal{X},\ P(x).
+$$
+
+The useful arrangement is therefore not “theorem instead of tests.” It is a
+theorem about a mechanically derived representation of the production
+function, plus tests and bounded model checks at representation and integration
+boundaries that the theorem intentionally does not absorb.
+
+## First, make the decision translatable
+
+The original production methods mixed comparisons, control flow, and mutation
+of the accumulated authority state. That shape was difficult to translate and
+made the proof boundary hard to name.
+
+We reshaped the authority kernel into total, safe functions over lossless
+borrowed views. The public behavior did not need to change. The shipping
+methods now call pure evaluators, then structurally commit an accepted result
+or map a denial.
+
+The delegation evaluator has this production signature:
+
+```rust
+pub fn evaluate_grant_view<'grant>(
+    parent: AuthorityStateView<'_>,
+    grant_id: GrantId,
+    grant: GrantAuthorityView<'grant>,
+) -> DelegationEvaluation<'grant>
+```
+
+Inside it, the Rust code computes every attenuation dimension, checks linkage
+first, selects a stable denial, and constructs the accepted transition:
+
+```rust
+let checks = AttenuationChecks {
+    root_preserved: true,
+    depth_decreases:
+        parent.remaining_depth > 0
+        && grant.remaining_depth < parent.remaining_depth,
+    profile_attenuates:
+        selected_profile_attenuates(
+            parent.profile,
+            parent.allowed_profiles,
+            grant.profile,
+        ),
+    permissions_attenuate:
+        permission_set_is_subset(
+            grant.permissions,
+            parent.permissions,
+        ),
+    validity_attenuates:
+        validity_window_contains(
+            parent.validity,
+            grant.validity,
+        ),
+    audiences_attenuate:
+        audience_set_is_subset(
+            grant.audiences,
+            parent.audiences,
+        ),
+    action_constraint_attenuates:
+        action_constraint_attenuates(
+            grant.action_constraint,
+            parent.action_constraint,
+        ),
+    budget_attenuates:
+        optional_budget_attenuates(
+            grant.budget_ceiling,
+            parent.budget_ceiling,
+        ),
+    status_attenuates:
+        status_policy_attenuates(
+            grant.status_policy,
+            parent.status_policy,
+        ),
+    assurance_attenuates:
+        assurance_policy_id_equal(
+            grant.assurance_floor,
+            parent.assurance_policy,
+        ),
+};
+```
+
+This shape matters for more than tooling convenience. It puts the complete
+decision surface inside one function:
+
+$$
+f_{\mathrm{Rust}} :
+(\Sigma_p,\mathrm{id}_g,G)
+\longrightarrow
+\operatorname{Denied}(r)
+\;+\;
+\operatorname{Accepted}(\Sigma_c).
+$$
+
+The diagnostic \(r\) and the accepted state \(\Sigma_c\) are part of the
+result. Proving only a Boolean such as “all checks passed” would leave the
+failure order and state transition outside the claim.
+
+The same pattern is used for pre-signing author scope and terminal action
+coverage. `evaluate_author_scope_view` returns the first authority dimension
+that failed. `evaluate_action_coverage_view` checks actor and terminal-grant
+linkage, profile selection, permission membership, validity containment,
+audience membership, body constraints, and requested-budget coverage in the
+same order used by production.
+
+## Charon records what Rust means here
+
+[Charon](https://aeneasverif.github.io/charon/charon_lib/index.html) is a
+custom Rust compiler driver used by Aeneas. It starts from Rust's Mid-level
+Intermediate Representation and produces LLBC, a structured representation
+suited to translation. The [Aeneas project description](https://aeneasverif.github.io/projects/)
+describes the intermediate stages as ULLBC followed by control-flow
+reconstruction into LLBC.
+
+For Auths Proof, Charon is the connection to the selected shipping source. It
+does not read a second, proof-only Rust implementation. The qualification
+manifest identifies exact production symbols from `auths-model`,
+`auths-algebra-kernel`, and `auths-authority`. Translation uses shipping
+features and rejects an extraction-only semantic configuration.
+
+<Mermaid
+  title="From shipping Rust to a checked refinement theorem"
+  description="Selected production Rust is lowered by Charon, translated by Aeneas into generated Lean, and related by a refinement theorem to a handwritten rich authority specification."
+  source={`flowchart LR
+    R["Shipping Rust<br/>pure authority evaluators"]
+    M["rustc MIR"]
+    C["Charon<br/>ULLBC → structured LLBC"]
+    L["Pinned LLBC<br/>selected source closure"]
+    A["Aeneas<br/>functional translation"]
+    G["Generated Lean evaluator<br/>executable production behavior"]
+    T["Refinement theorem"]
+    S["Handwritten rich Lean spec<br/>sets + intervals + relations"]
+    R --> M --> C --> L --> A --> G --> T
+    S --> T
+    R -. "called by shipping verifier" .-> X["Delegation and coverage decisions"]
+    T --> Q["Audited assurance claim"]`}/>
+
+The source closure is part of the evidence. It covers the translated dependency
+graph, the relevant manifests, the translation configuration, and the scripts
+that operate the pipeline. If one of those inputs changes while the checked-in
+translation remains old, the closure digest changes and the gate fails before
+installing the expensive formal toolchain.
+
+This answers one form of drift: the generated evaluator cannot silently remain
+attached to an earlier production source closure.
+
+## Aeneas produces a functional Lean evaluator
+
+[Aeneas](https://github.com/AeneasVerif/aeneas) translates the LLBC program
+into a pure functional model and can emit several proof-assistant backends,
+including Lean. Its intended input is safe, sequential Rust within its
+supported subset. That limitation is one reason to isolate the authority
+kernel instead of attempting to translate networking, storage, provider SDKs,
+and every verifier concern at once.
+
+For the Rust author-scope evaluator:
+
+```rust
+pub fn evaluate_author_scope_view(
+    parent: ScopeAuthorityView<'_>,
+    child: ScopeAuthorityView<'_>,
+) -> AuthorScopeDecision {
+    if !profile_ref_equal(child.profile, parent.profile) {
+        return AuthorScopeDecision::Denied(
+            AuthorityDimension::Profile,
+        );
+    }
+    if !permission_set_is_subset(
+        child.permissions,
+        parent.permissions,
+    ) {
+        return AuthorScopeDecision::Denied(
+            AuthorityDimension::Permissions,
+        );
+    }
+    // validity, audiences, constraints, budget,
+    // depth, status, and assurance follow
+    AuthorScopeDecision::Accepted
+}
+```
+
+Aeneas generates a Lean function with the same ordered computation:
+
+```lean
+def evaluate_author_scope_view
+  (parent : auths_model.ScopeAuthorityView)
+  (child : auths_model.ScopeAuthorityView) :
+  Result AuthorScopeDecision := do
+  let profileOk ←
+    auths_model.profile_ref_equal
+      child.profile parent.profile
+  if profileOk then
+    let permissionsOk ←
+      auths_model.permission_set_is_subset
+        child.permissions parent.permissions
+    if permissionsOk then
+      -- validity, audiences, constraints, budget,
+      -- depth, status, and assurance follow
+      ...
+    else
+      ok (AuthorScopeDecision.Denied
+        AuthorityDimension.Permissions)
+  else
+    ok (AuthorScopeDecision.Denied
+      AuthorityDimension.Profile)
+```
+
+The generated definition is intentionally not rewritten to look like the
+handwritten specification. Its nested `if` structure preserves the behavior
+that was extracted, including the first-failure order. That makes it less
+pleasant as the primary mathematical definition and more valuable as evidence
+about production.
+
+The translation also makes external semantics visible. Calls into local Auths
+crates are linked to separately translated definitions rather than treated as
+opaque assumptions. The qualification currently has one reviewed
+standard-library bridge of semantic importance: converting a Rust string to
+its exact UTF-8 bytes on the validated Auths string domain. External templates
+may contain placeholders, but only compiled bridge modules count as evidence;
+the compiled import closure is required to contain no external axioms.
+
+## The handwritten model says what we intend
+
+The rich Lean model does not care whether an identifier is stored as a Rust
+`String`, a byte array, or some future representation. It introduces opaque
+carriers for principals, profiles, permissions, audiences, digests, budget
+algebras, status methods, assurance policies, and grant identifiers.
+
+Sets are mathematical finite sets. Validity is an inclusive interval with a
+proof that its start does not exceed its end. A selected profile carries a
+proof that it belongs to the root-allowed set. This makes the semantic model
+small and rules out invalid states that production constructors already reject.
+
+For example, interval containment is:
+
+```lean
+def windowContained
+    (child parent : InclusiveWindow) : Prop :=
+  parent.start ≤ child.start ∧
+  child.finish ≤ parent.finish
+```
+
+Optional budget attenuation is deliberately asymmetric:
+
+```lean
+def budgetLe
+    (child parent : Option (BudgetCeiling v)) : Prop :=
+  match child, parent with
+  | _, none => True
+  | none, some _ => False
+  | some child, some parent =>
+      child.algebra = parent.algebra ∧
+      child.value ≤ parent.value
+```
+
+In mathematical notation:
+
+$$
+B_c \preceq_B B_p =
+\begin{cases}
+\top &
+  \text{if } B_p = \varnothing, \\
+\bot &
+  \text{if } B_c = \varnothing
+  \land B_p \neq \varnothing, \\
+a_c = a_p \land v_c \leq v_p &
+  \text{if } B_c=(a_c,v_c),\ B_p=(a_p,v_p).
+\end{cases}
+$$
+
+An absent parent ceiling means the authority model imposes no budget ceiling,
+so any child ceiling attenuates it. An absent child under a bounded parent
+would remove the bound, so it is rejected. Writing the cases explicitly keeps
+that meaning out of comments and intuition.
+
+Action constraints form another small order. Any constraint attenuates
+`anyBody`; an exact digest can attenuate the same exact digest or a set that
+contains it; one allowed set can attenuate another by subset; the remaining
+combinations fail:
+
+$$
+C_c \preceq_C C_p =
+\begin{cases}
+\top & C_p = \mathrm{Any}, \\
+d_c=d_p &
+  C_c=\mathrm{Exact}(d_c),\
+  C_p=\mathrm{Exact}(d_p), \\
+d_c\in D_p &
+  C_c=\mathrm{Exact}(d_c),\
+  C_p=\mathrm{Set}(D_p), \\
+D_c\subseteq D_p &
+  C_c=\mathrm{Set}(D_c),\
+  C_p=\mathrm{Set}(D_p), \\
+\bot & \text{otherwise}.
+\end{cases}
+$$
+
+These definitions express the intended order independently of the nested
+branches generated from Rust. The connection is supplied by refinement.
+
+## Refinement connects execution to meaning
+
+Let:
+
+- \(R(x)\) be the Aeneas-generated Lean execution of the production Rust
+  evaluator;
+- \(S(x)\) be the decision computed from the handwritten rich semantics; and
+- \(V(x)\) state the production representation invariants.
+
+The central shape of the claim is:
+
+$$
+\forall x,\quad
+\operatorname{Valid}(x)
+\Longrightarrow
+R(x) = S(x).
+$$
+
+For pre-signing scope, the checked Lean theorem says that the mechanically
+translated evaluator returns exactly the rich decision, including the first
+failing dimension:
+
+```lean
+theorem translated_rust_refines_rich_spec
+    (parent child : auths_model.ScopeAuthorityView)
+    (parentValid : ScopeAuthorityViewValid parent)
+    (childValid : ScopeAuthorityViewValid child) :
+    auths_authority.evaluate_author_scope_view parent child
+      ⦃ result =>
+        result = richAuthorScopeDecision
+          parent child parentValid childValid ⦄ := by
+  -- Each translated leaf predicate is connected to
+  -- its extensional set, interval, or equality meaning.
+  ...
+```
+
+There are corresponding theorems for terminal action coverage and delegation:
+
+```lean
+theorem translated_coverage_refines_rich_spec
+    (root : Auths.Rich.Principal ProductionVocabulary)
+    (authority : auths_authority.AuthorityStateView)
+    (action : auths_model.ActionAuthorityView)
+    (authorityValid : AuthorityStateViewValid authority)
+    (actionValid : ActionAuthorityViewValid action) :
+    auths_authority.evaluate_action_coverage_view authority action
+      ⦃ result =>
+        result = productionCoverageDecision
+          (Auths.Rich.evaluateCoverage
+            (richAuthorityState root authority authorityValid)
+            (richAction action actionValid)) ⦄ := by
+  ...
+```
+
+```lean
+theorem translated_delegation_refines_rich_spec
+    (root : Auths.Rich.Principal ProductionVocabulary)
+    (parent : auths_authority.AuthorityStateView)
+    (grantId : auths_model.GrantId)
+    (grant : auths_model.GrantAuthorityView)
+    (parentValid : AuthorityStateViewValid parent)
+    (grantValid : GrantAuthorityViewValid grant) :
+    auths_authority.evaluate_grant_view parent grantId grant
+      ⦃ result =>
+        result.outcome = productionDelegationOutcome
+          (Auths.Rich.evaluateGrant
+            (richAuthorityState root parent parentValid)
+            (richGrantId grantId)
+            (richGrant grant grantValid))
+          grantId grant ⦄ := by
+  ...
+```
+
+The notation `⦃ result => ... ⦄` is Aeneas' result specification. The theorem
+does not assert that an independently written Rust-like function resembles the
+specification. It reasons about the generated function named
+`auths_authority.evaluate_grant_view`, whose source annotation points back to
+the production Rust function.
+
+The delegation theorem is stronger than an accepted/rejected equivalence. It
+also equates the accepted production transition with the field projection of
+the rich accepted next state. A verifier that made the correct decision but
+wrote the wrong subject, budget, depth, or terminal grant would not satisfy
+that result equality.
+
+## The theorem inventory is executable policy
+
+A theorem name in documentation is not enough. It can be renamed, weakened,
+deleted, or rebuilt on an unreviewed axiom while a loose CI command continues
+to succeed.
+
+Auths Proof therefore has an assurance manifest. Each public claim records:
+
+- a stable claim identifier and human-readable claim;
+- the exact Lean declaration;
+- a digest of the theorem statement;
+- the Rust symbols to which it applies;
+- the semantic source closure;
+- the evidence artifacts;
+- the allowed transitive axiom set; and
+- residual assumptions and excluded scope.
+
+A compiled Lean audit looks up every declaration in the environment, prints
+its elaborated statement, and asks Lean to collect its transitive axioms. The
+Rust-side audit then compares that output with the manifest.
+
+For a claimed theorem \(t\), the gate effectively checks:
+
+$$
+\begin{aligned}
+\operatorname{name}(t) &= n_{\mathrm{manifest}}, \\
+H(\operatorname{statement}(t)) &= h_{\mathrm{manifest}}, \\
+\operatorname{axioms}(t) &= A_{\mathrm{allowed}}, \\
+H(\operatorname{sourceClosure}(t)) &= c_{\mathrm{manifest}}.
+\end{aligned}
+$$
+
+The exact allowed foundational set is declared per theorem. `sorryAx` is not
+allowed. A proof replaced by `sorry` therefore cannot satisfy a public
+assurance claim merely because Lean emitted an object file.
+
+This distinction matters because the pinned Aeneas runtime contains a small
+inventory of upstream `sorry` declarations in general slice and string
+iterator support. They are visible and reviewed, but none may become a
+transitive dependency of the claimed Auths theorems. The assurance audit
+enforces that boundary from the compiled environment rather than relying on a
+text search.
+
+## CI reproduces the bridge
+
+The expensive gate does more than run `lake build`.
+
+It first checks source closure using the ordinary Rust toolchain. If the
+checked-in closure does not describe the current relevant source graph, CI
+fails before downloading and building Charon, Aeneas, Lean, and Kani.
+
+When translation is required, CI installs the pinned toolchain, translates the
+selected production functions twice in clean output directories, and requires
+the two generated trees to be byte-identical:
+
+$$
+T(S,\tau)_1 = T(S,\tau)_2.
+$$
+
+Here \(S\) is the exact source closure and \(\tau\) is the exact translation
+toolchain and configuration. CI then requires the reproduced result to equal
+the committed evidence:
+
+$$
+T(S,\tau) = G_{\mathrm{repository}}.
+$$
+
+Translation warnings are errors. Ambient compiler flags and Cargo variables
+that could alter semantics are rejected. The qualification manifest requires
+zero opaque local functions and inventories every external model. Generated
+Lean import closures are compiled in the same pinned environment.
+
+After translation, CI builds the handwritten and generated Lean modules, runs
+the theorem and axiom audit, regenerates formal vectors, checks the Rust
+refinement harness, runs a required semantic mutation matrix, and applies Kani
+to the bounded Rust kernels used at lower bridges.
+
+<Mermaid
+  title="The formal gate fails closed"
+  description="A change is classified by a fail-closed planner. Relevant changes must pass source closure, deterministic translation, Lean refinement and assurance audits, and Rust-side bridge checks before the stable branch-protection job succeeds."
+  source={`flowchart TD
+    D["Pull request diff"]
+    P{"Fail-closed CI planner"}
+    U["Unrelated to formal closure"]
+    R["Formal translation required"]
+    S{"Cheap source-closure check"}
+    I["Install exact pinned<br/>Rust + Charon + Aeneas + Lean + Kani"]
+    T1["Translate clean tree A"]
+    T2["Translate clean tree B"]
+    E{"A = B = committed output"}
+    L["Build generated + handwritten Lean"]
+    A["Audit exact statements,<br/>source closure, and transitive axioms"]
+    V["Check Lean-generated vectors,<br/>mutation matrix, Rust harness, and Kani"]
+    G{"Stable formal-translation gate"}
+    F["Fail"]
+    D --> P
+    P -->|"recognized safe skip"| U --> G
+    P -->|"relevant or uncertain"| R --> S
+    P -->|"malformed / unknown"| F
+    S -->|"stale"| F
+    S -->|"current"| I
+    I --> T1
+    I --> T2
+    T1 --> E
+    T2 --> E
+    E -->|"different"| F
+    E -->|"identical"| L --> A --> V --> G
+    A -->|"missing / weakened / new axiom"| F
+    V -->|"bridge mismatch"| F`}/>
+
+The planner exists because a clean Aeneas reproduction is materially more
+expensive than an ordinary formatting or unit-test job. Selective execution is
+safe only if uncertainty means “run,” not “skip.” Unknown paths, malformed
+diffs, incomplete package graphs, and invalid manifests therefore fail closed.
+
+The final `formal-translation` job is always present even when the
+implementation job is safely skipped. Branch protection can require one stable
+check name. That check succeeds only if the planner succeeded and either:
+
+$$
+\begin{aligned}
+&\mathrm{required} \land \mathrm{implementationSucceeded}, \\
+\text{or}\quad
+&\neg\mathrm{required} \land \mathrm{implementationSkipped}.
+\end{aligned}
+$$
+
+This prevents a conditional workflow from disappearing precisely when its
+classification logic is broken.
+
+## Why vectors, mutation checks, and Kani still matter
+
+The formal system contains several bridges, and each tool addresses a
+different failure mode.
+
+Lean generates concrete state vectors that Rust consumes. This checks that
+serialization and projection code around the mathematical result agree on
+representative boundaries. Kani symbolically checks bounded Rust kernels such
+as the generated conjunction over attenuation dimensions. The mutation matrix
+requires specified semantic defects—reversed subset checks, widened intervals,
+incorrect absence handling, changed diagnostic order, or omitted
+dimensions—to be detected by the combined refinement evidence.
+
+These checks do not make the theorem more universal. They make the surrounding
+engineering claim more difficult to satisfy accidentally.
+
+One useful way to state the layers is:
+
+$$
+\begin{aligned}
+\text{Lean theorem} &:
+  \forall x \in \mathcal{V},\ R(x)=S(x), \\
+\text{Kani property} &:
+  \forall x \in \mathcal{B},\ K(x), \\
+\text{vector test} &:
+  \forall x \in \mathcal{E},\
+  \operatorname{Rust}(x)=\operatorname{LeanVector}(x),
+\end{aligned}
+$$
+
+where \(\mathcal V\) is the valid representation domain named by the
+refinement theorem, \(\mathcal B\) is a bounded symbolic domain, and
+\(\mathcal E\) is a finite regression set. Treating those sets as identical
+would overstate what any one check establishes.
+
+## What is inside the claim
+
+The current production refinement covers three decision boundaries over
+validated model views:
+
+1. pre-signing scope evaluation, including the first failing authority
+   dimension;
+2. terminal action coverage, including linkage, profile, permission, interval,
+   audience, body constraint, budget, and diagnostic order; and
+3. delegation, including linkage, all attenuation dimensions, denial
+   selection, and the accepted transition fields.
+
+The domain premise is important. Rust constructors establish facts such as:
+
+- strings are non-empty and protocol-bounded;
+- permission and audience collections are non-empty, bounded, sorted, and
+  duplicate-free;
+- inclusive validity windows are well formed;
+- freshness limits are non-zero;
+- profiles are valid; and
+- borrowed authority views preserve every field consumed by the evaluator.
+
+The refinement theorems assume those representation invariants. Aeneas erases
+private Rust newtype constructors into Lean carriers, so arbitrary Lean values
+of the carrier type are not automatically values that safe production Rust can
+construct.
+
+If \(\mathcal R\) is every value expressible in the translated carrier and
+\(\mathcal V\subseteq\mathcal R\) is the image of validated Rust values, the
+claim is:
+
+$$
+\forall x\in\mathcal{V},\ R(x)=S(x),
+$$
+
+not:
+
+$$
+\forall x\in\mathcal{R},\ R(x)=S(x).
+$$
+
+That is a boundary to expose, not smooth over.
+
+## What remains outside
+
+The formal claims do not prove:
+
+- canonical CBOR decoding or encoding;
+- cryptographic signature implementations;
+- registry or trust-anchor selection;
+- clocks, status stores, replay stores, or budget stores;
+- networking or transport;
+- credentials and provider effects;
+- application adapters; or
+- the complete end-to-end verifier control flow.
+
+Those components have other contracts and tests. Pulling them all into one
+translation would enlarge the trusted and modeled surface while making the
+central authority theorem harder to inspect. The current boundary follows the
+decision kernel: validated values enter; an ordered authority decision and,
+when accepted, an exact transition leave.
+
+The trusted computing base also remains real. It includes Lean's kernel and
+the pinned libraries, the pinned Rust/Charon/Aeneas translation semantics, the
+Rust compiler used for shipping code, the validated-constructor boundary, and
+the small reviewed external models. Formal verification does not remove trust.
+It makes the trusted components and the proved relation more precise.
+
+## The maintenance property matters most
+
+The most useful outcome is not that the repository contains a `formal`
+directory. It is that the relationship among source, translation, semantics,
+and theorem is executable.
+
+A developer who changes the order of checks in Rust changes an observable
+diagnostic contract. The source closure and reproduced translation change. The
+old theorem statement may remain the same, but its proof against the new
+generated evaluator must still succeed.
+
+A developer who weakens the theorem changes its elaborated statement digest.
+The assurance audit fails until the public claim is deliberately updated and
+reviewed.
+
+A developer who introduces an opaque local translation or a new external model
+violates the qualification inventory. A developer who replaces a proof with
+`sorry` introduces `sorryAx`, which violates the allowed transitive axiom set.
+A developer who modifies a relevant source through an unrecognized path causes
+the fail-closed planner to run or reject the formal phase rather than silently
+skip it.
+
+This is the standard I want from formalization in Auths Proof:
+
+$$
+\boxed{
+\text{production behavior}
+\;\xleftrightarrow[\text{refinement}]{\text{mechanical translation}}\;
+\text{stated authority semantics}
+}
+$$
+
+The box is not a claim that every component is proved. It is a claim that, for
+the named authority kernel and its valid input domain, the connection is
+specific enough to inspect and strict enough to break.
+
+That last property is what makes the proof part of the software rather than a
+paper about the software.
