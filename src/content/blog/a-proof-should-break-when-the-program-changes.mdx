@@ -58,7 +58,7 @@ The core authority rule is simple to say:
 > A delegation may preserve or reduce authority. It may not expand it.
 
 An authority scope contains more than a permission name. In the current rich
-model, a scope \(S\) contains:
+model, a scope $S$ contains:
 
 $$
 S =
@@ -69,16 +69,16 @@ $$
 
 where:
 
-- \(P\) is the profile scope;
-- \(M\) is a finite set of permissions;
-- \(W = [s,e]\) is an inclusive validity window;
-- \(A\) is a finite set of audiences;
-- \(C\) is a constraint over canonical action-body digests;
-- \(B\) is an optional budget ceiling;
-- \(T\) is a status policy; and
-- \(Q\) is an assurance policy.
+- $P$ is the profile scope;
+- $M$ is a finite set of permissions;
+- $W = [s,e]$ is an inclusive validity window;
+- $A$ is a finite set of audiences;
+- $C$ is a constraint over canonical action-body digests;
+- $B$ is an optional budget ceiling;
+- $T$ is a status policy; and
+- $Q$ is an assurance policy.
 
-For a proposed child scope \(S_c\) and its parent \(S_p\), structural
+For a proposed child scope $S_c$ and its parent $S_p$, structural
 attenuation is a conjunction:
 
 $$
@@ -96,8 +96,8 @@ P_c \preceq_P P_p
 \end{aligned}
 $$
 
-Delegation adds chain and depth conditions. If \(G\) is the proposed grant and
-\(\Sigma_p\) is the parent chain state, then an accepted edge requires:
+Delegation adds chain and depth conditions. If $G$ is the proposed grant and
+$\Sigma_p$ is the parent chain state, then an accepted edge requires:
 
 $$
 \begin{aligned}
@@ -122,7 +122,7 @@ $$
 These are not only predicates used to accept or reject a grant. They determine
 the unique accepted next state. The root remains unchanged, the subject
 becomes the grant subject, the accepted scope becomes the grant's attenuated
-scope, the depth becomes \(d_c\), and the terminal grant identifier becomes the
+scope, the depth becomes $d_c$, and the terminal grant identifier becomes the
 new grant identifier.
 
 The Lean semantics say this directly:
@@ -158,7 +158,7 @@ A Rust implementation can accidentally reverse the arguments:
 permission_set_is_subset(parent.permissions, child.permissions)
 ```
 
-The handwritten Lean theorem about \(M_c \subseteq M_p\) remains true. It says
+The handwritten Lean theorem about $M_c \subseteq M_p$ remains true. It says
 nothing about the typo unless some bridge connects the actual Rust expression
 to the Lean expression being proved.
 
@@ -266,7 +266,7 @@ f_{\mathrm{Rust}} :
 \operatorname{Accepted}(\Sigma_c).
 $$
 
-The diagnostic \(r\) and the accepted state \(\Sigma_c\) are part of the
+The diagnostic $r$ and the accepted state $\Sigma_c$ are part of the
 result. Proving only a Boolean such as “all checks passed” would leave the
 failure order and state transition outside the claim.
 
@@ -476,10 +476,10 @@ branches generated from Rust. The connection is supplied by refinement.
 
 Let:
 
-- \(R(x)\) be the Aeneas-generated Lean execution of the production Rust
+- $R(x)$ be the Aeneas-generated Lean execution of the production Rust
   evaluator;
-- \(S(x)\) be the decision computed from the handwritten rich semantics; and
-- \(V(x)\) state the production representation invariants.
+- $S(x)$ be the decision computed from the handwritten rich semantics; and
+- $V(x)$ state the production representation invariants.
 
 The central shape of the claim is:
 
@@ -578,7 +578,7 @@ A compiled Lean audit looks up every declaration in the environment, prints
 its elaborated statement, and asks Lean to collect its transitive axioms. The
 Rust-side audit then compares that output with the manifest.
 
-For a claimed theorem \(t\), the gate effectively checks:
+For a claimed theorem $t$, the gate effectively checks:
 
 $$
 \begin{aligned}
@@ -616,7 +616,7 @@ $$
 T(S,\tau)_1 = T(S,\tau)_2.
 $$
 
-Here \(S\) is the exact source closure and \(\tau\) is the exact translation
+Here $S$ is the exact source closure and $\tau$ is the exact translation
 toolchain and configuration. CI then requires the reproduced result to equal
 the committed evidence:
 
@@ -717,9 +717,9 @@ $$
 \end{aligned}
 $$
 
-where \(\mathcal V\) is the valid representation domain named by the
-refinement theorem, \(\mathcal B\) is a bounded symbolic domain, and
-\(\mathcal E\) is a finite regression set. Treating those sets as identical
+where $\mathcal V$ is the valid representation domain named by the
+refinement theorem, $\mathcal B$ is a bounded symbolic domain, and
+$\mathcal E$ is a finite regression set. Treating those sets as identical
 would overstate what any one check establishes.
 
 ## What is inside the claim
@@ -749,8 +749,8 @@ private Rust newtype constructors into Lean carriers, so arbitrary Lean values
 of the carrier type are not automatically values that safe production Rust can
 construct.
 
-If \(\mathcal R\) is every value expressible in the translated carrier and
-\(\mathcal V\subseteq\mathcal R\) is the image of validated Rust values, the
+If $\mathcal R$ is every value expressible in the translated carrier and
+$\mathcal V\subseteq\mathcal R$ is the image of validated Rust values, the
 claim is:
 
 $$
