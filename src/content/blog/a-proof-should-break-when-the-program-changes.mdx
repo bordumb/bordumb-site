@@ -162,23 +162,148 @@ The handwritten Lean theorem about $M_c \subseteq M_p$ remains true. It says
 nothing about the typo unless some bridge connects the actual Rust expression
 to the Lean expression being proved.
 
-Tests can catch a selected reversed-subset example, but a test suite samples
-inputs:
+## Why aren't unit tests enough?
+
+Unit tests are necessary. They are not the same kind of claim as a proof.
+
+Imagine a guard who decides whether one person may pass a locked door. We test
+the guard with Alice, Bob, and Carol. The guard gives the right answer three
+times. We have learned something useful: those three examples work, the test
+harness can reach the guard, and later changes can be compared with those
+answers.
+
+We have not learned the rule the guard will apply to the next person.
+
+A unit test fixes one input $x_i$, runs the program $R$, and compares the
+observed result with an expected result $S(x_i)$:
 
 $$
-\{x_1,x_2,\ldots,x_n\} \subsetneq \mathcal{X}.
+R(x_i) = S(x_i).
 $$
 
-A theorem quantifies over its modeled domain:
+A suite with $n$ cases establishes that equality for a finite test set:
 
 $$
-\forall x \in \mathcal{X},\ P(x).
+T = \{x_1,x_2,\ldots,x_n\}
+\subseteq \mathcal V,
 $$
 
-The useful arrangement is therefore not “theorem instead of tests.” It is a
-theorem about a mechanically derived representation of the production
-function, plus tests and bounded model checks at representation and integration
-boundaries that the theorem intentionally does not absorb.
+and, if every test passes:
+
+$$
+\forall x \in T,\quad R(x)=S(x).
+$$
+
+The conclusion is limited to $T$. It does not imply the corresponding statement
+over the complete valid domain $\mathcal V$:
+
+$$
+\forall x \in \mathcal V,\quad R(x)=S(x).
+$$
+
+The gap is $\mathcal V \setminus T$: every valid case that the suite did not
+run. A larger suite makes $T$ larger, but a finite collection of examples does
+not become a universal statement merely because it contains many examples.
+
+Authority decisions make that gap difficult to inspect manually because one
+input contains several interacting dimensions. A grant compares profile,
+permissions, validity, audiences, body constraints, budget, delegation depth,
+status, and assurance. It also checks issuer and parent-grant linkage. If we
+gave only three boundary categories to each of ten checks, the cross-product
+would already contain:
+
+$$
+3^{10} = 59{,}049
+$$
+
+combinations. The real domains contain sets, identifiers, intervals, optional
+values, and ordered diagnostics, so this number is only an illustration of the
+interaction problem. Adding one test for each individual check does not cover
+every way in which two or more checks can interact.
+
+The reversed-subset bug shows the problem with familiar examples. Suppose the
+test suite contains:
+
+$$
+M_c = M_p.
+$$
+
+Both subset directions are true in that case:
+
+$$
+M_c \subseteq M_p
+\quad\land\quad
+M_p \subseteq M_c.
+$$
+
+The incorrect implementation therefore passes. A test with a strict subset
+would expose the defect, but someone must think to write it. A theorem about
+the translated function forces the subset relation to hold for every
+well-formed parent and child permission set in the modeled domain, including
+the strict cases we did not enumerate.
+
+Tests have another limitation: the expected answer is code or data written by
+a person. The test and implementation can share one misunderstanding.
+
+For example, suppose a parent has a budget ceiling and a child omits its
+ceiling. If both the implementation and its unit test interpret absence as
+“inherit the parent ceiling,” the test passes. If the protocol actually
+interprets absence as “unbounded,” the child has expanded its authority. The
+formal specification makes the cases explicit:
+
+$$
+B_c \preceq_B B_p =
+\begin{cases}
+\top &
+  B_p = \varnothing, \\
+\bot &
+  B_c = \varnothing
+  \land B_p \neq \varnothing, \\
+a_c = a_p \land v_c \leq v_p &
+  B_c=(a_c,v_c),\ B_p=(a_p,v_p).
+\end{cases}
+$$
+
+The refinement theorem then checks that the mechanically translated production
+evaluator implements those cases for all values satisfying the representation
+premises. The theorem can still be wrong in a broader sense if the
+specification states the wrong policy, but changing or reviewing one explicit
+relation is different from inferring the policy from hundreds of expected
+outputs.
+
+Integration tests answer a further question that the refinement theorem does
+not claim to answer. They check whether decoding, signature verification,
+registry selection, the authority evaluator, storage, and an application
+adapter work together. If a valid grant is decoded incorrectly before it
+reaches the proved function, the refinement theorem does not repair the
+decoder. If an authorized result is mapped to the wrong Stripe operation
+afterward, the theorem does not repair the adapter.
+
+The layers therefore make different statements:
+
+$$
+\begin{aligned}
+\text{unit test} &: R(x_i)=S(x_i), \\
+\text{integration test} &: F_1 \circ F_2 \circ \cdots \circ F_k
+  \text{ works for scenario } i, \\
+\text{refinement theorem} &: \forall x\in\mathcal V,\ R(x)=S(x).
+\end{aligned}
+$$
+
+Removing the tests would leave codecs, cryptography, adapters, and deployment
+behavior underchecked. Removing the refinement theorem would return the
+authority kernel to a finite sample of a large interacting domain. Auths Proof
+uses both because they remove different kinds of uncertainty.
+
+So the actual answer is:
+
+- Unit tests catch local regressions and concrete boundary cases.
+- Integration tests catch disagreement between components.
+- Mutation tests show that required defects are observable.
+- Kani checks bounded Rust properties symbolically.
+- Lean proves general semantic properties.
+- Charon and Aeneas connect those proofs to the production Rust evaluator.
+- CI prevents that connection from silently becoming stale.
 
 ## First, make the decision translatable
 
