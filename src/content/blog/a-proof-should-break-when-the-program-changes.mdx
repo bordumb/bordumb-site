@@ -216,10 +216,24 @@ $$
 3^{10} = 59{,}049
 $$
 
-combinations. The real domains contain sets, identifiers, intervals, optional
-values, and ordered diagnostics, so this number is only an illustration of the
-interaction problem. Adding one test for each individual check does not cover
-every way in which two or more checks can interact.
+combinations.
+
+Lean does not enumerate those $59{,}049$ combinations one by one. The
+refinement theorem proves a universal statement: for every valid input
+combination represented by the authority model, the mechanically translated
+production evaluator returns the result required by the rich specification.
+The real domain is much larger than this illustration because it contains
+sets, identifiers, intervals, optional values, and ordered diagnostics.
+
+That statement applies to the selected authority-kernel functions and their
+explicit valid-input domain. It does not mean that Lean proves every Auths
+component works for every possible input. Decoding, cryptography, storage,
+networking, and application adapters remain outside this refinement theorem
+and require their own evidence.
+
+The number therefore illustrates why sampled coverage becomes difficult; it is
+not the mechanism of the proof. Adding one test for each individual check does
+not cover every way in which two or more checks can interact.
 
 The reversed-subset bug shows the problem with familiar examples. Suppose the
 test suite contains:
