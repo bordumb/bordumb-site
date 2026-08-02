@@ -3,9 +3,14 @@ import BaseLayout from "@/layouts/BaseLayout.astro";
 import NavierStokesPhysicsLab from "@/components/labs/NavierStokesPhysicsLab.astro";
 import {
   physicsTopicById,
+  physicsStorySteps,
   physicsTopics,
   type PhysicsTopic,
 } from "@/components/labs/navierStokesPhysics";
+import {
+  angularSliceProgress,
+  radialProgressSummary,
+} from "@/components/labs/navierStokesProgress";
 
 export function getStaticPaths() {
   return physicsTopics.map((topic) => ({
@@ -51,18 +56,88 @@ const next = topic.next ? physicsTopicById(topic.next) : undefined;
       </aside>
     </header>
 
+    <nav class="story-path" aria-label="The physical-to-formal story">
+      <div class="story-path-intro">
+        <p class="eyebrow">One story · four stops</p>
+        <strong>From moving water to a checked certificate.</strong>
+      </div>
+      <ol>
+        {physicsStorySteps.map((step) => (
+          <li data-current={step.id === topic.id ? "true" : undefined}>
+            <a href={`/labs/navier-stokes/${step.id}/`} aria-current={step.id === topic.id ? "step" : undefined}>
+              <span>{step.index}</span>
+              <strong>{step.label}</strong>
+              <small>{step.summary}</small>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+
     <NavierStokesPhysicsLab topic={topic} />
 
     <section class="child-note" aria-labelledby="child-note-title">
-      <p class="eyebrow">The five-year-old version</p>
-      <h2 id="child-note-title">Water can stretch its own swirls.</h2>
-      <p>
-        Thick honey smooths bumps quickly. Fast water can also pull a little
-        swirl into a longer, sharper one. The Clay problem asks whether the
-        smoothing always catches up before a perfectly smooth three-dimensional
-        flow makes an infinitely sharp spot. These pictures show the tug of war;
-        they are not a numerical simulation or a proof by themselves.
-      </p>
+      <p class="eyebrow">Plain-language checkpoint</p>
+      <h2 id="child-note-title">{topic.plainTitle}</h2>
+      <div>
+        <p>{topic.plainBody}</p>
+        <p class="topic-bridge"><span>Why the next step follows</span>{topic.bridge}</p>
+      </div>
+    </section>
+
+    <section class="math-layer" aria-labelledby="math-layer-title">
+      <header>
+        <p class="eyebrow">Mathematical layer · kept explicit</p>
+        <h2 id="math-layer-title">{topic.expertTitle}</h2>
+        <p>{topic.expertBody}</p>
+      </header>
+
+      <div class="expert-equation" aria-label="Expert equation">
+        <span>{topic.expertEquation}</span>
+        <p>{topic.expertTheorem}</p>
+      </div>
+
+      <div class="symbol-layer">
+        <div>
+          <p class="eyebrow">Symbol-by-symbol</p>
+          <h3>Read the notation without guessing.</h3>
+        </div>
+        <dl>
+          {topic.symbols.map((item) => (
+            <div>
+              <dt><span>{item.symbol}</span>{item.name}</dt>
+              <dd>{item.meaning}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+
+      {topic.id === "radius-and-cancellation" && (
+        <div class="slice-progress" aria-labelledby="slice-progress-title">
+          <div class="slice-progress-head">
+            <div>
+              <p class="eyebrow">Repository snapshot · {radialProgressSummary.observedAt}</p>
+              <h3 id="slice-progress-title">Five coefficients, three different evidence states.</h3>
+            </div>
+            <strong>{radialProgressSummary.label}</strong>
+          </div>
+          <ol>
+            {angularSliceProgress.map((slice) => (
+              <li data-status={slice.status}>
+                <span>j={slice.index}</span>
+                <div>
+                  <strong>{slice.statusLabel}</strong>
+                  <p>{slice.plain}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+          <p class="progress-caveat">
+            “Building” means the source is present and under definitive replay.
+            It becomes “kernel-checked” only after Lake exits successfully.
+          </p>
+        </div>
+      )}
     </section>
 
     <nav class="topic-footer" aria-label="Adjacent physics topics">
@@ -193,6 +268,76 @@ const next = topic.next ? physicsTopicById(topic.next) : undefined;
     line-height: 1.6;
   }
 
+  .story-path {
+    display: grid;
+    grid-template-columns: minmax(13rem, 0.32fr) minmax(0, 1fr);
+    gap: clamp(1.5rem, 4vw, 4rem);
+    align-items: stretch;
+    margin-bottom: clamp(2.5rem, 5vw, 4rem);
+    border-block: 1px solid var(--border-strong);
+  }
+
+  .story-path-intro {
+    padding: 1.35rem 0;
+  }
+
+  .story-path-intro strong {
+    display: block;
+    max-width: 17rem;
+    margin-top: 0.75rem;
+    font-family: var(--serif);
+    font-size: 1.3rem;
+    font-weight: 500;
+    line-height: 1.2;
+  }
+
+  .story-path ol {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    margin: 0;
+    padding: 0;
+    border-left: 1px solid var(--border);
+    list-style: none;
+  }
+
+  .story-path li {
+    min-width: 0;
+    border-right: 1px solid var(--border);
+  }
+
+  .story-path li[data-current="true"] {
+    background: var(--accent-soft);
+  }
+
+  .story-path a {
+    display: grid;
+    gap: 0.5rem;
+    height: 100%;
+    padding: 1.1rem;
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .story-path a > span,
+  .story-path a > small {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.56rem;
+    line-height: 1.35;
+  }
+
+  .story-path a > strong {
+    font-family: var(--serif);
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .story-path a:hover strong,
+  .story-path a:focus-visible strong,
+  .story-path a[aria-current="step"] strong {
+    color: var(--accent);
+  }
+
   .child-note {
     display: grid;
     grid-template-columns: minmax(12rem, 0.3fr) minmax(15rem, 0.45fr) minmax(18rem, 0.7fr);
@@ -211,12 +356,213 @@ const next = topic.next ? physicsTopicById(topic.next) : undefined;
     line-height: 0.98;
   }
 
-  .child-note > p:last-child {
+  .child-note > div > p {
     margin: 0;
     color: var(--muted);
     font-family: var(--serif);
     font-size: 1.05rem;
     line-height: 1.65;
+  }
+
+  .topic-bridge {
+    margin-top: 1.5rem !important;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .topic-bridge span {
+    display: block;
+    margin-bottom: 0.45rem;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .math-layer {
+    padding-block: clamp(4rem, 8vw, 7rem);
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  .math-layer > header {
+    display: grid;
+    grid-template-columns: minmax(14rem, 0.55fr) minmax(20rem, 0.85fr);
+    gap: 1rem clamp(2rem, 6vw, 6rem);
+    align-items: end;
+  }
+
+  .math-layer > header .eyebrow {
+    grid-column: 1 / -1;
+  }
+
+  .math-layer > header h2 {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: clamp(2.2rem, 4.5vw, 4rem);
+    font-weight: 400;
+    letter-spacing: -0.05em;
+    line-height: 0.98;
+  }
+
+  .math-layer > header > p:last-child {
+    margin: 0;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: 1.05rem;
+    line-height: 1.65;
+  }
+
+  .expert-equation {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(18rem, 1fr);
+    gap: clamp(1.5rem, 4vw, 4rem);
+    align-items: center;
+    margin-top: clamp(2.5rem, 6vw, 4.5rem);
+    padding-block: 1.5rem;
+    border-block: 1px solid var(--border-strong);
+  }
+
+  .expert-equation > span {
+    overflow-x: auto;
+    color: var(--text);
+    font-family: var(--serif);
+    font-size: clamp(1.35rem, 2.5vw, 2.1rem);
+    white-space: nowrap;
+  }
+
+  .expert-equation p {
+    margin: 0;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.64rem;
+    line-height: 1.6;
+  }
+
+  .symbol-layer {
+    display: grid;
+    grid-template-columns: minmax(13rem, 0.35fr) minmax(0, 1fr);
+    gap: clamp(1.5rem, 5vw, 5rem);
+    padding-top: clamp(2.5rem, 6vw, 4.5rem);
+  }
+
+  .symbol-layer h3,
+  .slice-progress h3 {
+    margin: 0.7rem 0 0;
+    font-family: var(--serif);
+    font-size: clamp(1.55rem, 2.8vw, 2.4rem);
+    font-weight: 400;
+    letter-spacing: -0.035em;
+    line-height: 1;
+  }
+
+  .symbol-layer dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0;
+  }
+
+  .symbol-layer dl div {
+    padding: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .symbol-layer dt {
+    display: flex;
+    gap: 0.75rem;
+    align-items: baseline;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    text-transform: uppercase;
+  }
+
+  .symbol-layer dt span {
+    min-width: 2.2rem;
+    color: var(--accent);
+    font-family: var(--serif);
+    font-size: 1.15rem;
+    text-transform: none;
+  }
+
+  .symbol-layer dd {
+    margin: 0.55rem 0 0 2.95rem;
+    color: var(--muted);
+    font-size: 0.78rem;
+    line-height: 1.5;
+  }
+
+  .slice-progress {
+    margin-top: clamp(3rem, 7vw, 5rem);
+    padding-top: 2rem;
+    border-top: 1px solid var(--border-strong);
+  }
+
+  .slice-progress-head {
+    display: flex;
+    gap: 2rem;
+    align-items: end;
+    justify-content: space-between;
+  }
+
+  .slice-progress-head > strong {
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    font-weight: 500;
+    text-transform: uppercase;
+  }
+
+  .slice-progress ol {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    margin: 2rem 0 0;
+    padding: 0;
+    border-block: 1px solid var(--border);
+    list-style: none;
+  }
+
+  .slice-progress li {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.7rem;
+    padding: 1rem;
+    border-right: 1px solid var(--border);
+  }
+
+  .slice-progress li:last-child {
+    border-right: 0;
+  }
+
+  .slice-progress li > span,
+  .slice-progress li strong {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.56rem;
+  }
+
+  .slice-progress li[data-status="proved"] strong {
+    color: #2f725f;
+  }
+
+  .slice-progress li[data-status="building"] strong {
+    color: #ac6547;
+  }
+
+  .slice-progress li p {
+    margin: 0.55rem 0 0;
+    color: var(--muted);
+    font-size: 0.72rem;
+    line-height: 1.45;
+  }
+
+  .progress-caveat {
+    max-width: 48rem;
+    margin: 1rem 0 0;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    line-height: 1.5;
   }
 
   .topic-footer {
@@ -271,18 +617,41 @@ const next = topic.next ? physicsTopicById(topic.next) : undefined;
       border-left: 0;
     }
 
-    .child-note {
+    .child-note,
+    .math-layer > header,
+    .expert-equation,
+    .symbol-layer {
       grid-template-columns: 1fr 1fr;
     }
 
-    .child-note > p:last-child {
+    .child-note > div {
       grid-column: 2;
+    }
+
+    .story-path {
+      grid-template-columns: 1fr;
+    }
+
+    .story-path ol {
+      border-top: 1px solid var(--border);
+      border-left: 0;
+    }
+
+    .slice-progress ol {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .slice-progress li {
+      border-bottom: 1px solid var(--border);
     }
   }
 
   @media (max-width: 650px) {
     .physics-hero,
     .child-note,
+    .math-layer > header,
+    .expert-equation,
+    .symbol-layer,
     .topic-footer {
       grid-template-columns: 1fr;
     }
@@ -292,7 +661,7 @@ const next = topic.next ? physicsTopicById(topic.next) : undefined;
     }
 
     .hero-question,
-    .child-note > p:last-child {
+    .child-note > div {
       grid-column: 1;
     }
 
@@ -304,5 +673,33 @@ const next = topic.next ? physicsTopicById(topic.next) : undefined;
       border-top: 1px solid var(--border);
       border-left: 0;
     }
+
+    .symbol-layer dl,
+    .slice-progress ol {
+      grid-template-columns: 1fr;
+    }
+
+    .story-path ol {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .story-path li,
+    .slice-progress li {
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .slice-progress-head {
+      display: grid;
+      align-items: start;
+    }
+  }
+
+  :global([data-theme="dark"]) .slice-progress li[data-status="proved"] strong {
+    color: #7fb8a8;
+  }
+
+  :global([data-theme="dark"]) .slice-progress li[data-status="building"] strong {
+    color: #dc9473;
   }
 </style>

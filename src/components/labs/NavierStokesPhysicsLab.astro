@@ -1,5 +1,9 @@
 ---
-import { physicsTopics, type PhysicsTopic } from "./navierStokesPhysics";
+import {
+  physicsTopics,
+  sceneLegends,
+  type PhysicsTopic,
+} from "./navierStokesPhysics";
 
 type Props = {
   topic: PhysicsTopic;
@@ -13,6 +17,7 @@ const { topic } = Astro.props;
   id={`physics-lab-${topic.id}`}
   data-physics-lab
   data-topic={JSON.stringify(topic)}
+  data-scene-legends={JSON.stringify(sceneLegends)}
   aria-labelledby="physics-scene-title"
 >
   <nav class="topic-rail" aria-label="Physics topics">
@@ -59,6 +64,14 @@ const { topic } = Astro.props;
         <span>physical picture</span>
         <i></i>
         <span>mathematical object</span>
+      </div>
+      <div class="visual-key" aria-label="Picture key">
+        <span>Picture key</span>
+        <ul id="physics-visual-key">
+          {sceneLegends[topic.scenes[0].mode].map((item) => (
+            <li><i data-mark={item.mark}></i>{item.label}</li>
+          ))}
+        </ul>
       </div>
     </div>
 
@@ -148,11 +161,19 @@ const { topic } = Astro.props;
     scenes: Scene[];
   };
 
+  type LegendItem = {
+    mark: "arrow" | "dot" | "ring" | "curve" | "bar" | "glow" | "tile";
+    label: string;
+  };
+
   const clamp = (value: number, min: number, max: number) =>
     Math.max(min, Math.min(max, value));
 
   document.querySelectorAll<HTMLElement>("[data-physics-lab]").forEach((root) => {
     const topic = JSON.parse(root.dataset.topic ?? "{}") as Topic;
+    const legendMap = JSON.parse(
+      root.dataset.sceneLegends ?? "{}",
+    ) as Record<string, LegendItem[]>;
     const canvas = root.querySelector<HTMLCanvasElement>(".physics-canvas")!;
     const ctx = canvas.getContext("2d")!;
     const sceneButtons = Array.from(
@@ -173,6 +194,7 @@ const { topic } = Astro.props;
     const watch = root.querySelector<HTMLElement>("#physics-watch")!;
     const proof = root.querySelector<HTMLElement>("#physics-proof")!;
     const proofStatus = root.querySelector<HTMLElement>("#physics-proof-status")!;
+    const visualKey = root.querySelector<HTMLUListElement>("#physics-visual-key")!;
 
     let activeScene = 0;
     let value = topic.scenes[0].control.value;
@@ -582,7 +604,13 @@ const { topic } = Astro.props;
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(angle + Math.PI / 2);
-        ctx.fillStyle = i === selected ? c.active || c.warm : c.surface;
+        const status = i < 2 ? "checked" : i === 2 ? "building" : "open";
+        const statusColor = status === "checked"
+          ? c.proof
+          : status === "building"
+            ? c.warm
+            : c.surface;
+        ctx.fillStyle = statusColor;
         ctx.strokeStyle = i === selected ? c.warm : c.border;
         ctx.lineWidth = i === selected ? 3 : 1;
         ctx.beginPath();
@@ -590,10 +618,12 @@ const { topic } = Astro.props;
         ctx.fill();
         ctx.stroke();
         ctx.restore();
-        label(`u^${i}`, x, y + 4, i === selected ? c.canvas : c.muted, "center");
+        label(`u^${i}`, x, y - 2, status === "open" ? c.muted : c.canvas, "center");
+        label(status, x, y + 12, status === "open" ? c.faint : c.canvas, "center", 7);
       }
       dot(cx, cy, 9, c.text);
-      label(`slice ${selected}`, cx, cy + 36, c.text, "center", 13);
+      const selectedStatus = selected < 2 ? "checked" : selected === 2 ? "building" : "open";
+      label(`coefficient j=${selected} · ${selectedStatus}`, cx, cy + 36, c.text, "center", 12);
     };
 
     const drawAssembly = (width: number, height: number, amount: number, c: ReturnType<typeof colors>) => {
@@ -604,15 +634,16 @@ const { topic } = Astro.props;
       for (let i = 0; i < 5; i += 1) {
         const x = start + i * (tileWidth + gap);
         const closed = i < proved;
+        const building = proved === 2 && i === 2;
         ctx.fillStyle = closed ? c.surface : c.canvas;
-        ctx.strokeStyle = closed ? c.proof || c.accent : c.warm;
+        ctx.strokeStyle = closed ? c.proof : building ? c.warm : c.border;
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.roundRect(x, height * 0.34, tileWidth, 88, 4);
         ctx.fill();
         ctx.stroke();
-        label(`T${i}`, x + tileWidth / 2, height * 0.34 + 37, closed ? c.accent : c.warm, "center", 15);
-        label(closed ? "= 0" : "open", x + tileWidth / 2, height * 0.34 + 63, closed ? c.accent : c.muted, "center");
+        label(`T${i}`, x + tileWidth / 2, height * 0.34 + 37, closed ? c.proof : building ? c.warm : c.muted, "center", 15);
+        label(closed ? "= 0" : building ? "building" : "open", x + tileWidth / 2, height * 0.34 + 63, closed ? c.proof : building ? c.warm : c.muted, "center");
       }
       const allClosed = proved === 5;
       label(allClosed ? "tail erased → D = 0" : `${proved} of 5 leaf theorems available`, width / 2, height * 0.75, allClosed ? c.accent : c.muted, "center", 13);
@@ -665,6 +696,19 @@ const { topic } = Astro.props;
       return `${Math.round(rawValue)}${scene.control.unit}`;
     };
 
+    const renderLegend = (mode: string) => {
+      const items = legendMap[mode] ?? [];
+      visualKey.replaceChildren(
+        ...items.map((item) => {
+          const entry = document.createElement("li");
+          const mark = document.createElement("i");
+          mark.dataset.mark = item.mark;
+          entry.append(mark, item.label);
+          return entry;
+        }),
+      );
+    };
+
     const setScene = (index: number) => {
       activeScene = clamp(index, 0, topic.scenes.length - 1);
       const scene = topic.scenes[activeScene];
@@ -692,6 +736,7 @@ const { topic } = Astro.props;
       proof.textContent = scene.proof;
       proofStatus.textContent = scene.proofStatus;
       proofStatus.dataset.status = scene.proofStatus;
+      renderLegend(scene.mode);
       previous.disabled = activeScene === 0;
       next.textContent = activeScene === topic.scenes.length - 1
         ? "Restart physical story"
@@ -843,7 +888,7 @@ const { topic } = Astro.props;
 
   .physics-canvas-wrap {
     display: grid;
-    grid-template-rows: auto minmax(28rem, 1fr) auto;
+    grid-template-rows: auto minmax(28rem, 1fr) auto auto;
     min-width: 0;
     border-right: 1px solid var(--border-strong);
   }
@@ -897,6 +942,106 @@ const { topic } = Astro.props;
   .canvas-scale i {
     height: 1px;
     background: linear-gradient(90deg, var(--physics-warm), var(--accent));
+  }
+
+  .visual-key {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.8rem 1.25rem;
+    align-items: start;
+    padding: 0.8rem 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .visual-key > span {
+    color: var(--physics-warm);
+    font-family: var(--mono);
+    font-size: 0.54rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .visual-key ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem 1.2rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .visual-key li {
+    display: inline-flex;
+    gap: 0.45rem;
+    align-items: center;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.56rem;
+    line-height: 1.35;
+  }
+
+  .visual-key i {
+    position: relative;
+    display: inline-block;
+    width: 0.8rem;
+    height: 0.8rem;
+    flex: 0 0 auto;
+    border: 1px solid var(--accent);
+  }
+
+  .visual-key i[data-mark="dot"] {
+    width: 0.42rem;
+    height: 0.42rem;
+    border: 0;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .visual-key i[data-mark="ring"] {
+    border-radius: 50%;
+  }
+
+  .visual-key i[data-mark="arrow"] {
+    width: 0.9rem;
+    height: 1px;
+    border: 0;
+    background: var(--accent);
+  }
+
+  .visual-key i[data-mark="arrow"]::after {
+    position: absolute;
+    top: -0.18rem;
+    right: 0;
+    width: 0.32rem;
+    height: 0.32rem;
+    border-top: 1px solid var(--accent);
+    border-right: 1px solid var(--accent);
+    content: "";
+    transform: rotate(45deg);
+  }
+
+  .visual-key i[data-mark="curve"] {
+    height: 0.45rem;
+    border-width: 1px 0 0;
+    border-radius: 50%;
+  }
+
+  .visual-key i[data-mark="bar"] {
+    width: 0.18rem;
+    border: 0;
+    background: var(--accent);
+  }
+
+  .visual-key i[data-mark="glow"] {
+    border: 0;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    box-shadow: 0 0 0.5rem var(--accent);
+  }
+
+  .visual-key i[data-mark="tile"] {
+    border-radius: 0.12rem;
+    background: var(--accent-soft);
   }
 
   .physics-copy {
@@ -1092,8 +1237,17 @@ const { topic } = Astro.props;
   @media (max-width: 880px) {
     .topic-rail,
     .scene-rail {
-      overflow-x: auto;
-      grid-template-columns: repeat(4, minmax(9rem, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .topic-rail a:nth-child(2),
+    .scene-rail button:nth-child(2) {
+      border-right: 0;
+    }
+
+    .topic-rail a:nth-child(-n + 2),
+    .scene-rail button:nth-child(-n + 2) {
+      border-bottom: 1px solid var(--border);
     }
 
     .physics-stage {
@@ -1121,7 +1275,7 @@ const { topic } = Astro.props;
 
   @media (max-width: 580px) {
     .physics-canvas-wrap {
-      grid-template-rows: auto minmax(22rem, 1fr) auto;
+      grid-template-rows: auto minmax(22rem, 1fr) auto auto;
     }
 
     .physics-canvas {
@@ -1130,6 +1284,10 @@ const { topic } = Astro.props;
 
     .physics-copy {
       min-height: 37rem;
+    }
+
+    .visual-key {
+      grid-template-columns: 1fr;
     }
   }
 </style>

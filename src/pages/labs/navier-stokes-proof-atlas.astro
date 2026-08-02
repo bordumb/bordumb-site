@@ -1,6 +1,8 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import NavierStokesProofAtlas from "@/components/labs/NavierStokesProofAtlas.astro";
+import { physicsStorySteps } from "@/components/labs/navierStokesPhysics";
+import { radialProgressSummary } from "@/components/labs/navierStokesProgress";
 ---
 
 <BaseLayout
@@ -19,24 +21,25 @@ import NavierStokesProofAtlas from "@/components/labs/NavierStokesProofAtlas.ast
         <p class="eyebrow">Navier–Stokes · formal proof observatory</p>
         <h1>One obstruction,<br /><em>under a microscope.</em></h1>
         <p class="hero-deck">
-          The agent is converting an explicit Gaussian witness into a global,
-          kernel-checked no-go theorem. This atlas shows the exact object under
-          analysis, what each commit established, and where the work stops
-          short of the Millennium problem.
+          The project is testing whether one tempting shortcut for controlling
+          three-dimensional fluid spin can work. Its explicit Gaussian witness
+          may rule out that shortcut. This atlas keeps the physical story, the
+          exact Lean proof, and the remaining distance to Clay visibly separate.
         </p>
       </div>
 
       <aside class="hero-boundary">
         <span>Current boundary</span>
-        <strong>Twofold-X radial tail</strong>
+        <strong>Angular coefficient j=2</strong>
         <p>
-          Two radial coefficients are closed. Five angular slices must erase
-          the remaining degree-ten quotient; slice zero is the active bridge.
+          Two of five angular coefficients are kernel-checked. The middle
+          coefficient is written and currently replaying through the definitive
+          persistent Lake target.
         </p>
         <dl>
           <div>
             <dt>Evidence</dt>
-            <dd>Exact rational + Lean kernel</dd>
+            <dd>{radialProgressSummary.label}</dd>
           </div>
           <div>
             <dt>Conclusion</dt>
@@ -45,6 +48,43 @@ import NavierStokesProofAtlas from "@/components/labs/NavierStokesProofAtlas.ast
         </dl>
       </aside>
     </header>
+
+    <section class="audience-gateway" aria-labelledby="audience-gateway-title">
+      <div class="gateway-intro">
+        <p class="eyebrow">New to the mathematics? Start here.</p>
+        <h2 id="audience-gateway-title">Follow one idea from water to proof.</h2>
+        <p>
+          Begin with moving specks and spinning paddle wheels. Each stop adds
+          one necessary idea; the equations and theorem details remain beside
+          the physical explanation for expert readers.
+        </p>
+        <a href="/labs/navier-stokes/flow-and-spin/">
+          Begin with flow and spin <span aria-hidden="true">→</span>
+        </a>
+      </div>
+
+      <ol>
+        {physicsStorySteps.map((step) => (
+          <li>
+            <a href={`/labs/navier-stokes/${step.id}/`}>
+              <span>{step.index}</span>
+              <strong>{step.label}</strong>
+              <small>{step.summary}</small>
+            </a>
+          </li>
+        ))}
+      </ol>
+
+      <aside>
+        <p class="eyebrow">Already fluent in PDE or Lean?</p>
+        <strong>The research atlas begins below.</strong>
+        <p>
+          The workflow, ranked commits, exact certificate anatomy, and logical
+          distance to Clay are preserved in full.
+        </p>
+        <a href="#proof-atlas">Jump to the formal work ↓</a>
+      </aside>
+    </section>
 
     <NavierStokesProofAtlas />
 
@@ -208,6 +248,104 @@ import NavierStokesProofAtlas from "@/components/labs/NavierStokesProofAtlas.ast
     color: var(--text);
   }
 
+  .audience-gateway {
+    display: grid;
+    grid-template-columns: minmax(16rem, 0.55fr) minmax(0, 1fr) minmax(14rem, 0.36fr);
+    gap: clamp(1.5rem, 4vw, 4rem);
+    margin-bottom: clamp(4rem, 8vw, 7rem);
+    padding-block: clamp(2rem, 5vw, 3.5rem);
+    border-block: 1px solid var(--border-strong);
+  }
+
+  .gateway-intro h2 {
+    margin: 0.8rem 0 1rem;
+    font-family: var(--serif);
+    font-size: clamp(2rem, 4vw, 3.4rem);
+    font-weight: 400;
+    letter-spacing: -0.045em;
+    line-height: 0.98;
+  }
+
+  .gateway-intro > p:last-of-type,
+  .audience-gateway aside p:last-of-type {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.6;
+  }
+
+  .gateway-intro > a,
+  .audience-gateway aside a {
+    display: inline-flex;
+    gap: 0.6rem;
+    margin-top: 1.3rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid currentColor;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    text-decoration: none;
+    text-transform: uppercase;
+  }
+
+  .audience-gateway ol {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--border);
+    border-left: 1px solid var(--border);
+    list-style: none;
+  }
+
+  .audience-gateway li {
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .audience-gateway li a {
+    display: grid;
+    gap: 0.45rem;
+    height: 100%;
+    padding: 1rem;
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .audience-gateway li span,
+  .audience-gateway li small {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.56rem;
+    line-height: 1.4;
+  }
+
+  .audience-gateway li strong {
+    font-family: var(--serif);
+    font-size: 1rem;
+    font-weight: 500;
+  }
+
+  .audience-gateway li a:hover strong,
+  .audience-gateway li a:focus-visible strong {
+    color: var(--accent);
+  }
+
+  .audience-gateway aside {
+    padding: 1.25rem 0 0 1.25rem;
+    border-top: 1px solid var(--border-strong);
+    border-left: 1px solid var(--border);
+  }
+
+  .audience-gateway aside > strong {
+    display: block;
+    margin: 0.75rem 0;
+    font-family: var(--serif);
+    font-size: 1.25rem;
+    font-weight: 500;
+    line-height: 1.2;
+  }
+
   .reading-note {
     display: grid;
     grid-template-columns: minmax(16rem, 0.45fr) minmax(0, 1fr);
@@ -281,6 +419,16 @@ import NavierStokesProofAtlas from "@/components/labs/NavierStokesProofAtlas.ast
     .reading-note {
       grid-template-columns: 1fr;
     }
+
+    .audience-gateway {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .audience-gateway aside {
+      grid-column: 1 / -1;
+      padding-left: 0;
+      border-left: 0;
+    }
   }
 
   @media (max-width: 680px) {
@@ -299,6 +447,14 @@ import NavierStokesProofAtlas from "@/components/labs/NavierStokesProofAtlas.ast
 
     .reading-columns {
       grid-template-columns: 1fr;
+    }
+
+    .audience-gateway {
+      grid-template-columns: 1fr;
+    }
+
+    .audience-gateway ol {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .atlas-footer {
