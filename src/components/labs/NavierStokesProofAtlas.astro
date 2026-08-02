@@ -1,0 +1,1635 @@
+---
+const topics = [
+  {
+    rank: 1,
+    title: "Sparse spatial obstruction",
+    status: "active",
+    statusLabel: "ACTIVE",
+    score: 96,
+    commits: ["3737539", "0a4ca1c", "84d56c5"],
+    finding:
+      "The sparse Gaussian field now has exact small-scale, compact-core, and far-tail infrastructure. The remaining work must assemble global spatial domination.",
+    boundary:
+      "A completed witness would invalidate one universal closure; it would not prove regularity or blow-up.",
+  },
+  {
+    rank: 2,
+    title: "Twofold-X radial tail",
+    status: "active",
+    statusLabel: "ACTIVE",
+    score: 93,
+    commits: ["f7b8726", "4c03e66"],
+    finding:
+      "Exact constant and linear radial coefficients reduce the degree-twelve identity to a degree-ten quotient split across five angular coefficients.",
+    boundary:
+      "Angular slice zero is exposed; slices one through four and their final assembly remain open.",
+  },
+  {
+    rank: 3,
+    title: "Compact 58-cell cover",
+    status: "exact",
+    statusLabel: "EXACT / PARTIAL LEAN",
+    score: 89,
+    commits: ["d39b43b", "f91aaf1", "0ce403b"],
+    finding:
+      "Exact rational endpoint and Bernstein checks retain a 58-cell cover. Band 0's three boxes and six signed controls are assembled in Lean.",
+    boundary:
+      "The other 55 cells are certificate data until their generated modules and aggregate theorem compile.",
+  },
+  {
+    rank: 4,
+    title: "Exact spatial tail",
+    status: "proved",
+    statusLabel: "KERNEL-CHECKED",
+    score: 84,
+    commits: ["3737539", "77d20b6"],
+    finding:
+      "An analytic tail theorem controls the sparse observable outside the compact spatial region and is imported by the project root.",
+    boundary:
+      "The theorem handles the far region only; compact and inner-radial pieces must meet it without a coverage gap.",
+  },
+  {
+    rank: 5,
+    title: "Small-scale face",
+    status: "proved",
+    statusLabel: "KERNEL-CHECKED",
+    score: 81,
+    commits: ["c2d76f4", "7fb3095"],
+    finding:
+      "Exact variance and heat-flow certificates close the selected sparse Gaussian's small-scale regime.",
+    boundary:
+      "This controls one face of parameter space, not arbitrary Navier–Stokes solutions.",
+  },
+  {
+    rank: 6,
+    title: "Heat-flow profile and bias",
+    status: "proved",
+    statusLabel: "KERNEL-CHECKED",
+    score: 77,
+    commits: ["c00e865", "7fb3095"],
+    finding:
+      "The normalized convolution and its exact heat-Laplacian derivative are connected to a rational bias certificate.",
+    boundary:
+      "The result evaluates the explicit witness; it does not supply a universal dissipative estimate.",
+  },
+  {
+    rank: 7,
+    title: "Center and scale motion",
+    status: "proved",
+    statusLabel: "KERNEL-CHECKED",
+    score: 70,
+    commits: ["8778fe9", "0eb59ff"],
+    finding:
+      "The physical Gaussian observable is linked to exact center and scale derivatives, removing two analytic interface gaps.",
+    boundary:
+      "Stationarity is not global maximality, and global maximality is not a Clay conclusion.",
+  },
+  {
+    rank: 8,
+    title: "Symmetric global route",
+    status: "parked",
+    statusLabel: "PARKED",
+    score: 42,
+    commits: ["row 146", "1,944 rows"],
+    finding:
+      "Scouts found viable intervals but falsified simple monotonicity and fixed-winner reductions. The row-146 Lean proof did not compile.",
+    boundary:
+      "The sparse witness was selected because the symmetric certificate was larger and more brittle.",
+  },
+];
+
+const proofNodes = [
+  {
+    id: "field",
+    eyebrow: "01 · explicit datum",
+    title: "Sparse Gaussian field",
+    status: "proved",
+    detail:
+      "An explicit Schwartz, divergence-free field supplies literal polynomial-Gaussian formulas. Admissibility and pointwise vorticity bounds are exact.",
+    evidence: "Kernel theorems + exact symbolic generation",
+    physicsHref: "/labs/navier-stokes/flow-and-spin/",
+    physicsLabel: "See flow and spin",
+  },
+  {
+    id: "motion",
+    eyebrow: "02 · analytic bridge",
+    title: "Center, scale, heat flow",
+    status: "proved",
+    detail:
+      "Derivative identities connect the physical convolution to its closed formula. Small-scale heat bias and variance are kernel-checked.",
+    evidence: "Compiled Lean modules",
+    physicsHref: "/labs/navier-stokes/gaussian-lens/",
+    physicsLabel: "Open the Gaussian lens",
+  },
+  {
+    id: "radial",
+    eyebrow: "03a · current focus",
+    title: "Inner radial certificate",
+    status: "active",
+    detail:
+      "Two checked coefficients factor the remaining identity by X². Five angular slices must prove the degree-ten quotient vanishes.",
+    evidence: "Slice 0 exposed; slices 1–4 open",
+    physicsHref: "/labs/navier-stokes/radius-and-cancellation/",
+    physicsLabel: "See radius and cancellation",
+  },
+  {
+    id: "compact",
+    eyebrow: "03b · finite region",
+    title: "Compact 58-cell cover",
+    status: "exact",
+    detail:
+      "The retained rational cover preserves cancellation across three Gaussian groups. Three Band 0 cells are in Lean; 55 remain exact certificate data.",
+    evidence: "58 exact cells · 3 formally assembled",
+    physicsHref: "/labs/navier-stokes/gaussian-lens/",
+    physicsLabel: "See the measured region",
+  },
+  {
+    id: "tail",
+    eyebrow: "03c · far region",
+    title: "Analytic spatial tail",
+    status: "proved",
+    detail:
+      "Absolute tail estimates take over beyond the compact domain. This region is already proved and imported through the project root.",
+    evidence: "Kernel theorem imported by NavierStokes.lean",
+    physicsHref: "/labs/navier-stokes/gaussian-lens/",
+    physicsLabel: "See near and far scales",
+  },
+  {
+    id: "global",
+    eyebrow: "04 · assembly",
+    title: "Global sparse maximum",
+    status: "open",
+    detail:
+      "Inner radial, compact, tail, and scale pieces must cover every center and positive scale with compatible strict inequalities.",
+    evidence: "Not yet assembled",
+    physicsHref: "/labs/navier-stokes/stretch-and-smooth/",
+    physicsLabel: "See the competing effects",
+  },
+  {
+    id: "obstruction",
+    eyebrow: "05 · conclusion",
+    title: "Universal closure fails",
+    status: "open",
+    detail:
+      "The intended theorem would rule out a proposed scalar Gaussian maximum-principle closure at a certified global maximizer.",
+    evidence: "A no-go theorem, not a singular solution",
+    physicsHref: "/labs/navier-stokes/stretch-and-smooth/",
+    physicsLabel: "See why the shortcut matters",
+  },
+];
+
+const slices = [
+  {
+    index: 0,
+    status: "BRIDGE READY",
+    tone: "proved",
+    title: "Angular coefficient zero",
+    copy: "Nine source rows and nine certificate rows normalize to the same 37-coefficient canonical polynomial. Their difference is zero.",
+    evidence: "Public opacity bridge audited; definitive target build pending in the latest report.",
+  },
+  {
+    index: 1,
+    status: "OPEN",
+    tone: "open",
+    title: "Angular coefficient one",
+    copy: "The next coefficient of the outer-angular polynomial must be reduced to a matching canonical radial tail.",
+    evidence: "No dedicated Angular1 module is present in the current tree.",
+  },
+  {
+    index: 2,
+    status: "OPEN",
+    tone: "open",
+    title: "Angular coefficient two",
+    copy: "The middle angular coefficient is part of the same five-slice zero proof and requires its own exact source/certificate normalization.",
+    evidence: "Required by the degree-four angular bound.",
+  },
+  {
+    index: 3,
+    status: "OPEN",
+    tone: "open",
+    title: "Angular coefficient three",
+    copy: "This slice must be shown identically zero before the nested angular polynomial can collapse.",
+    evidence: "No compiled leaf theorem recorded yet.",
+  },
+  {
+    index: 4,
+    status: "OPEN",
+    tone: "open",
+    title: "Angular coefficient four",
+    copy: "The final possible coefficient closes the five-slice dispatcher. Higher coefficients are excluded by the proved degree bound.",
+    evidence: "Last leaf before tail assembly.",
+  },
+];
+
+const compactCells = Array.from({ length: 58 }, (_, index) => ({
+  index,
+  status: index < 3 ? "proved" : "exact",
+  label:
+    index < 3
+      ? `Band 0 · box ${index} · six controls assembled`
+      : `Retained exact cell ${index + 1} · Lean transfer pending`,
+}));
+---
+
+<section
+  class="proof-atlas"
+  id="proof-atlas"
+  aria-labelledby="atlas-title"
+  data-proof-nodes={JSON.stringify(proofNodes)}
+  data-slices={JSON.stringify(slices)}
+>
+  <div class="atlas-head">
+    <div>
+      <p class="eyebrow">Live proof map · repository snapshot</p>
+      <h2 id="atlas-title">What the agent is proving.</h2>
+    </div>
+    <div class="snapshot" aria-label="Current snapshot summary">
+      <span><strong>58</strong> compact cells</span>
+      <span><strong>5</strong> radial tail slices</span>
+      <span><strong>0</strong> Clay conclusions</span>
+    </div>
+  </div>
+
+  <div class="atlas-tabs" role="tablist" aria-label="Proof atlas views">
+    <button type="button" role="tab" aria-selected="true" aria-controls="panel-map" id="tab-map" data-atlas-tab="map">
+      Dependency atlas
+    </button>
+    <button type="button" role="tab" aria-selected="false" aria-controls="panel-ledger" id="tab-ledger" data-atlas-tab="ledger" tabindex="-1">
+      Ranked ledger
+    </button>
+    <button type="button" role="tab" aria-selected="false" aria-controls="panel-certificate" id="tab-certificate" data-atlas-tab="certificate" tabindex="-1">
+      Certificate anatomy
+    </button>
+    <button type="button" role="tab" aria-selected="false" aria-controls="panel-clay" id="tab-clay" data-atlas-tab="clay" tabindex="-1">
+      Distance to Clay
+    </button>
+  </div>
+
+  <div class="atlas-panels">
+    <section class="atlas-panel" id="panel-map" role="tabpanel" aria-labelledby="tab-map" data-atlas-panel="map">
+      <div class="map-layout">
+        <div class="proof-map" aria-label="Dependency map from explicit sparse field to the proposed obstruction theorem">
+          <div class="map-stage map-stage-wide">
+            <button class="proof-node" type="button" data-proof-node="field" data-status="proved">
+              <span>01</span>
+              <strong>Sparse Gaussian field</strong>
+              <small>admissible · explicit</small>
+            </button>
+          </div>
+          <div class="map-arrow" aria-hidden="true">↓</div>
+          <div class="map-stage map-stage-wide">
+            <button class="proof-node" type="button" data-proof-node="motion" data-status="proved">
+              <span>02</span>
+              <strong>Center · scale · heat</strong>
+              <small>analytic bridges</small>
+            </button>
+          </div>
+          <div class="map-arrow split" aria-hidden="true"><span>↙</span><span>↓</span><span>↘</span></div>
+          <div class="map-stage map-stage-split">
+            <button class="proof-node is-selected" type="button" data-proof-node="radial" data-status="active">
+              <span>03a</span>
+              <strong>Inner radial</strong>
+              <small>five-slice tail</small>
+            </button>
+            <button class="proof-node" type="button" data-proof-node="compact" data-status="exact">
+              <span>03b</span>
+              <strong>Compact cover</strong>
+              <small>3 / 58 in Lean</small>
+            </button>
+            <button class="proof-node" type="button" data-proof-node="tail" data-status="proved">
+              <span>03c</span>
+              <strong>Spatial tail</strong>
+              <small>kernel-checked</small>
+            </button>
+          </div>
+          <div class="map-arrow join" aria-hidden="true"><span>↘</span><span>↓</span><span>↙</span></div>
+          <div class="map-stage map-stage-wide">
+            <button class="proof-node" type="button" data-proof-node="global" data-status="open">
+              <span>04</span>
+              <strong>Global sparse maximum</strong>
+              <small>assembly open</small>
+            </button>
+          </div>
+          <div class="map-arrow" aria-hidden="true">↓</div>
+          <div class="map-stage map-stage-wide">
+            <button class="proof-node" type="button" data-proof-node="obstruction" data-status="open">
+              <span>05</span>
+              <strong>Closure obstruction</strong>
+              <small>not a Clay solution</small>
+            </button>
+          </div>
+        </div>
+
+        <aside class="node-inspector" aria-live="polite">
+          <p class="inspector-eyebrow" id="node-eyebrow">03a · current focus</p>
+          <h3 id="node-title">Inner radial certificate</h3>
+          <p id="node-detail">
+            Two checked coefficients factor the remaining identity by X². Five angular slices must prove the degree-ten quotient vanishes.
+          </p>
+          <dl>
+            <div>
+              <dt>Evidence boundary</dt>
+              <dd id="node-evidence">Slice 0 exposed; slices 1–4 open</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd><span class="status-badge" id="node-status" data-status="active">ACTIVE</span></dd>
+            </div>
+          </dl>
+          <a
+            class="physics-link"
+            id="node-physics-link"
+            href="/labs/navier-stokes/radius-and-cancellation/"
+          >
+            See radius and cancellation <span aria-hidden="true">↗</span>
+          </a>
+        </aside>
+      </div>
+
+      <div class="legend" aria-label="Status legend">
+        <span data-status="proved">Kernel-checked theorem</span>
+        <span data-status="exact">Exact certificate, partial transfer</span>
+        <span data-status="active">Active proof boundary</span>
+        <span data-status="open">Open assembly</span>
+      </div>
+    </section>
+
+    <section class="atlas-panel" id="panel-ledger" role="tabpanel" aria-labelledby="tab-ledger" data-atlas-panel="ledger" hidden>
+      <div class="panel-intro">
+        <div>
+          <p class="panel-kicker">Ranked by leverage on the sparse obstruction</p>
+          <h3>Commits grouped by what they changed.</h3>
+        </div>
+        <p>
+          The score measures proximity to the current obstruction theorem—not proximity to solving Navier–Stokes. A proved negative result can rank highly here while remaining logically distant from Clay.
+        </p>
+      </div>
+
+      <div class="ledger-filters" role="group" aria-label="Filter ranked topics">
+        <button type="button" class="is-active" data-ledger-filter="all" aria-pressed="true">All</button>
+        <button type="button" data-ledger-filter="proved" aria-pressed="false">Kernel-checked</button>
+        <button type="button" data-ledger-filter="active" aria-pressed="false">Active</button>
+        <button type="button" data-ledger-filter="exact" aria-pressed="false">Exact transfer</button>
+        <button type="button" data-ledger-filter="parked" aria-pressed="false">Parked</button>
+      </div>
+
+      <ol class="topic-ledger">
+        {topics.map((topic) => (
+          <li data-ledger-row data-status={topic.status}>
+            <div class="rank-number">{String(topic.rank).padStart(2, "0")}</div>
+            <div class="topic-body">
+              <div class="topic-title-line">
+                <h4>{topic.title}</h4>
+                <span class="status-badge" data-status={topic.status}>{topic.statusLabel}</span>
+              </div>
+              <p>{topic.finding}</p>
+              <p class="topic-boundary"><strong>Boundary:</strong> {topic.boundary}</p>
+              <div class="commit-list" aria-label="Representative commits">
+                {topic.commits.map((commit) => <code>{commit}</code>)}
+              </div>
+            </div>
+            <div class="leverage" aria-label={`Leverage score ${topic.score} out of 100`}>
+              <span>{topic.score}</span>
+              <div><i style={`--score: ${topic.score}%`}></i></div>
+              <small>obstruction leverage</small>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <p class="empty-ledger" hidden>No topics match this filter.</p>
+    </section>
+
+    <section class="atlas-panel" id="panel-certificate" role="tabpanel" aria-labelledby="tab-certificate" data-atlas-panel="certificate" hidden>
+      <div class="panel-intro">
+        <div>
+          <p class="panel-kicker">Current proof object</p>
+          <h3>A degree-twelve identity reduced to five leaves.</h3>
+        </div>
+        <p>
+          The constant and linear radial coefficients vanish. Dividing their difference by <em>X</em> twice leaves a degree-ten tail. A degree-four angular bound means five coefficient theorems can erase that tail exactly.
+        </p>
+      </div>
+
+      <div class="factor-visual" aria-label="The radial polynomial difference factors as X squared times a five-slice angular tail">
+        <div>
+          <span>literal difference</span>
+          <strong>D(u, w, X)</strong>
+        </div>
+        <b>=</b>
+        <div class="factor-closed">
+          <span>checked coefficients</span>
+          <strong>X²</strong>
+          <small>coeff 0 = 0 · coeff 1 = 0</small>
+        </div>
+        <b>×</b>
+        <div class="factor-open">
+          <span>remaining quotient</span>
+          <strong>T(u, w, X)</strong>
+          <small>degree ≤ 10 in X</small>
+        </div>
+      </div>
+
+      <div class="slice-explorer">
+        <div class="slice-controls" role="group" aria-label="Select angular coefficient">
+          {slices.map((slice) => (
+            <button
+              type="button"
+              class={slice.index === 0 ? "is-active" : undefined}
+              data-slice={slice.index}
+              aria-pressed={slice.index === 0 ? "true" : "false"}
+            >
+              <span>u^{slice.index}</span>
+              <small data-status={slice.tone}>{slice.status}</small>
+            </button>
+          ))}
+        </div>
+        <div class="slice-equation">
+          <span>T(u, w, X) =</span>
+          <div aria-label="Five angular terms">
+            {slices.map((slice) => (
+              <button
+                type="button"
+                class={slice.index === 0 ? "is-active" : undefined}
+                data-slice-term={slice.index}
+                aria-label={`Inspect angular coefficient ${slice.index}`}
+              >
+                {slice.index > 0 && <i>+</i>}
+                u<sup>{slice.index}</sup>T<sub>{slice.index}</sub>(w, X)
+              </button>
+            ))}
+          </div>
+        </div>
+        <article class="slice-detail" aria-live="polite">
+          <div>
+            <span class="status-badge" id="slice-status" data-status="proved">BRIDGE READY</span>
+            <small id="slice-counter">slice 1 of 5</small>
+          </div>
+          <h4 id="slice-title">Angular coefficient zero</h4>
+          <p id="slice-copy">
+            Nine source rows and nine certificate rows normalize to the same 37-coefficient canonical polynomial. Their difference is zero.
+          </p>
+          <p class="slice-evidence" id="slice-evidence">
+            Public opacity bridge audited; definitive target build pending in the latest report.
+          </p>
+        </article>
+      </div>
+
+      <div class="compact-explorer">
+        <div class="compact-copy">
+          <p class="panel-kicker">Parallel compact transfer</p>
+          <h4>58 exact cells, three assembled.</h4>
+          <p>
+            Each cell preserves the signed middle Gaussian and checks six controls. Select a cell to see whether it is already a Lean theorem or retained exact data.
+          </p>
+          <output id="cell-output">Band 0 · box 0 · six controls assembled</output>
+        </div>
+        <div class="cell-grid" aria-label="Compact certificate cells">
+          {compactCells.map((cell) => (
+            <button
+              type="button"
+              data-cell={cell.index}
+              data-cell-status={cell.status}
+              data-cell-label={cell.label}
+              aria-label={cell.label}
+              title={cell.label}
+            >
+              {cell.index + 1}
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="atlas-panel" id="panel-clay" role="tabpanel" aria-labelledby="tab-clay" data-atlas-panel="clay" hidden>
+      <div class="panel-intro">
+        <div>
+          <p class="panel-kicker">Logical distance, not percentage complete</p>
+          <h3>The current theorem ends before the central breakthrough.</h3>
+        </div>
+        <p>
+          A global sparse witness can prove that one scalar Gaussian closure fails. Clay requires either a universal estimate for every admissible solution or an actual finite-time singular solution.
+        </p>
+      </div>
+
+      <div class="clay-route">
+        <div class="route-current">
+          <span>Current program</span>
+          <strong>Explicit witness</strong>
+          <small>finish global certificate</small>
+        </div>
+        <div class="route-arrow">→</div>
+        <div class="route-current">
+          <span>Negative theorem</span>
+          <strong>Closure fails</strong>
+          <small>eliminates one strategy</small>
+        </div>
+        <div class="route-break">
+          <span>missing mathematical mechanism</span>
+          <b aria-hidden="true"></b>
+        </div>
+        <div class="route-fork">
+          <article>
+            <span>Route A</span>
+            <h4>Global regularity</h4>
+            <p>Invent a scale-critical coercive estimate that survives the obstruction and controls every smooth solution.</p>
+            <small data-status="open">OPEN RESEARCH</small>
+          </article>
+          <article>
+            <span>Route B</span>
+            <h4>Finite-time blow-up</h4>
+            <p>Construct admissible data whose genuine Navier–Stokes trajectory becomes singular in finite time.</p>
+            <small data-status="open">OPEN RESEARCH</small>
+          </article>
+        </div>
+        <div class="route-join" aria-hidden="true">↘&nbsp;&nbsp;&nbsp;&nbsp;↙</div>
+        <div class="clay-apex">
+          <span>Clay conclusion</span>
+          <strong>Global regularity or counterexample</strong>
+          <small>no established bridge from the current obstruction</small>
+        </div>
+      </div>
+
+      <div class="steering-gate">
+        <p class="panel-kicker">Recommended decision gate</p>
+        <div>
+          <span>1</span>
+          <p><strong>Close the five-slice radial tail.</strong> This gives the current decomposition a bounded terminal theorem.</p>
+        </div>
+        <div>
+          <span>2</span>
+          <p><strong>Prove the weakest sufficient obstruction.</strong> Do not globalize the witness further unless the final no-go statement requires it.</p>
+        </div>
+        <div>
+          <span>3</span>
+          <p><strong>Return to the first genuinely open Clay dependency.</strong> New lemmas must name their consumer on that path.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<script>
+  type ProofNode = {
+    id: string;
+    eyebrow: string;
+    title: string;
+    status: string;
+    detail: string;
+    evidence: string;
+    physicsHref: string;
+    physicsLabel: string;
+  };
+
+  type Slice = {
+    index: number;
+    status: string;
+    tone: string;
+    title: string;
+    copy: string;
+    evidence: string;
+  };
+
+  const root = document.getElementById("proof-atlas") as HTMLElement | null;
+
+  if (root) {
+    const proofNodes = JSON.parse(root.dataset.proofNodes ?? "[]") as ProofNode[];
+    const slices = JSON.parse(root.dataset.slices ?? "[]") as Slice[];
+    const tabButtons = Array.from(
+      root.querySelectorAll<HTMLButtonElement>("[data-atlas-tab]"),
+    );
+    const panels = Array.from(
+      root.querySelectorAll<HTMLElement>("[data-atlas-panel]"),
+    );
+
+    const activateTab = (name: string, focus = false) => {
+      tabButtons.forEach((button) => {
+        const active = button.dataset.atlasTab === name;
+        button.setAttribute("aria-selected", String(active));
+        button.tabIndex = active ? 0 : -1;
+        if (active && focus) button.focus();
+      });
+      panels.forEach((panel) => {
+        panel.hidden = panel.dataset.atlasPanel !== name;
+      });
+      if (history.replaceState) history.replaceState(null, "", `#${name}`);
+    };
+
+    tabButtons.forEach((button, index) => {
+      button.addEventListener("click", () =>
+        activateTab(button.dataset.atlasTab ?? "map"),
+      );
+      button.addEventListener("keydown", (event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        const delta = event.key === "ArrowRight" ? 1 : -1;
+        const next = (index + delta + tabButtons.length) % tabButtons.length;
+        activateTab(tabButtons[next].dataset.atlasTab ?? "map", true);
+      });
+    });
+
+    const initialTab = location.hash.slice(1);
+    if (tabButtons.some((button) => button.dataset.atlasTab === initialTab)) {
+      activateTab(initialTab);
+    }
+
+    const nodeButtons = Array.from(
+      root.querySelectorAll<HTMLButtonElement>("[data-proof-node]"),
+    );
+    const nodeEyebrow = root.querySelector<HTMLElement>("#node-eyebrow")!;
+    const nodeTitle = root.querySelector<HTMLElement>("#node-title")!;
+    const nodeDetail = root.querySelector<HTMLElement>("#node-detail")!;
+    const nodeEvidence = root.querySelector<HTMLElement>("#node-evidence")!;
+    const nodeStatus = root.querySelector<HTMLElement>("#node-status")!;
+    const nodePhysicsLink = root.querySelector<HTMLAnchorElement>("#node-physics-link")!;
+
+    const inspectNode = (id: string) => {
+      const node = proofNodes.find((item) => item.id === id);
+      if (!node) return;
+      nodeButtons.forEach((button) => button.classList.toggle("is-selected", button.dataset.proofNode === id));
+      nodeEyebrow.textContent = node.eyebrow;
+      nodeTitle.textContent = node.title;
+      nodeDetail.textContent = node.detail;
+      nodeEvidence.textContent = node.evidence;
+      nodeStatus.textContent = node.status.toUpperCase();
+      nodeStatus.dataset.status = node.status;
+      nodePhysicsLink.href = node.physicsHref;
+      nodePhysicsLink.firstChild!.textContent = `${node.physicsLabel} `;
+    };
+
+    nodeButtons.forEach((button) =>
+      button.addEventListener("click", () =>
+        inspectNode(button.dataset.proofNode ?? "radial"),
+      ),
+    );
+
+    const filterButtons = Array.from(
+      root.querySelectorAll<HTMLButtonElement>("[data-ledger-filter]"),
+    );
+    const ledgerRows = Array.from(
+      root.querySelectorAll<HTMLElement>("[data-ledger-row]"),
+    );
+    const emptyLedger = root.querySelector<HTMLElement>(".empty-ledger")!;
+
+    filterButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const filter = button.dataset.ledgerFilter;
+        filterButtons.forEach((candidate) => {
+          const active = candidate === button;
+          candidate.classList.toggle("is-active", active);
+          candidate.setAttribute("aria-pressed", String(active));
+        });
+        let visible = 0;
+        ledgerRows.forEach((row) => {
+          const show = filter === "all" || row.dataset.status === filter;
+          row.hidden = !show;
+          if (show) visible += 1;
+        });
+        emptyLedger.hidden = visible !== 0;
+      });
+    });
+
+    const sliceButtons = Array.from(
+      root.querySelectorAll<HTMLButtonElement>("[data-slice]"),
+    );
+    const sliceTerms = Array.from(
+      root.querySelectorAll<HTMLButtonElement>("[data-slice-term]"),
+    );
+    const sliceStatus = root.querySelector<HTMLElement>("#slice-status")!;
+    const sliceCounter = root.querySelector<HTMLElement>("#slice-counter")!;
+    const sliceTitle = root.querySelector<HTMLElement>("#slice-title")!;
+    const sliceCopy = root.querySelector<HTMLElement>("#slice-copy")!;
+    const sliceEvidence = root.querySelector<HTMLElement>("#slice-evidence")!;
+
+    const inspectSlice = (index: number) => {
+      const slice = slices.find((item) => item.index === index);
+      if (!slice) return;
+      sliceButtons.forEach((button) => {
+        const active = Number(button.dataset.slice) === index;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
+      sliceTerms.forEach((term) => term.classList.toggle("is-active", Number(term.dataset.sliceTerm) === index));
+      sliceStatus.textContent = slice.status;
+      sliceStatus.dataset.status = slice.tone;
+      sliceCounter.textContent = `slice ${index + 1} of 5`;
+      sliceTitle.textContent = slice.title;
+      sliceCopy.textContent = slice.copy;
+      sliceEvidence.textContent = slice.evidence;
+    };
+
+    sliceButtons.forEach((button) =>
+      button.addEventListener("click", () =>
+        inspectSlice(Number(button.dataset.slice)),
+      ),
+    );
+    sliceTerms.forEach((button) =>
+      button.addEventListener("click", () =>
+        inspectSlice(Number(button.dataset.sliceTerm)),
+      ),
+    );
+
+    const cellOutput = root.querySelector<HTMLOutputElement>("#cell-output")!;
+    const cells = Array.from(
+      root.querySelectorAll<HTMLButtonElement>("[data-cell]"),
+    );
+    cells.forEach((cell) => {
+      cell.addEventListener("click", () => {
+        cells.forEach((candidate) =>
+          candidate.classList.toggle("is-selected", candidate === cell),
+        );
+        cellOutput.textContent = cell.dataset.cellLabel ?? "Certificate cell";
+      });
+    });
+  }
+</script>
+
+<style>
+  .proof-atlas {
+    --proof: #2f725f;
+    --proof-soft: color-mix(in srgb, var(--proof) 13%, var(--canvas));
+    --exact: #59718c;
+    --exact-soft: color-mix(in srgb, var(--exact) 13%, var(--canvas));
+    --active: #a5673f;
+    --active-soft: color-mix(in srgb, var(--active) 14%, var(--canvas));
+    --open: #9b4d47;
+    --open-soft: color-mix(in srgb, var(--open) 11%, var(--canvas));
+    border-block: 1px solid var(--border-strong);
+  }
+
+  :global([data-theme="dark"]) .proof-atlas {
+    --proof: #7fb8a8;
+    --exact: #92aeca;
+    --active: #d69a72;
+    --open: #d8837b;
+  }
+
+  .atlas-head {
+    display: flex;
+    gap: 2rem;
+    align-items: end;
+    justify-content: space-between;
+    padding: clamp(2rem, 5vw, 3.5rem) 0 1.5rem;
+  }
+
+  .atlas-head h2 {
+    margin: 0.65rem 0 0;
+    font-family: var(--serif);
+    font-size: clamp(2.25rem, 5vw, 4.4rem);
+    font-weight: 400;
+    letter-spacing: -0.05em;
+    line-height: 0.95;
+  }
+
+  .snapshot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: end;
+    gap: 0.6rem 1.2rem;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+  }
+
+  .snapshot span {
+    display: inline-flex;
+    gap: 0.35rem;
+    align-items: baseline;
+  }
+
+  .snapshot strong {
+    color: var(--text);
+    font-size: 1.15rem;
+    font-weight: 500;
+  }
+
+  .atlas-tabs {
+    display: flex;
+    overflow-x: auto;
+    border-block: 1px solid var(--border);
+    scrollbar-width: none;
+  }
+
+  .atlas-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .atlas-tabs button {
+    flex: 1 0 auto;
+    padding: 1rem 1.25rem;
+    border: 0;
+    border-right: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .atlas-tabs button:first-child {
+    border-left: 1px solid var(--border);
+  }
+
+  .atlas-tabs button[aria-selected="true"] {
+    background: var(--surface);
+    color: var(--accent);
+  }
+
+  .atlas-panel {
+    min-height: 45rem;
+    padding-block: clamp(2rem, 5vw, 4rem);
+  }
+
+  .atlas-panel[hidden] {
+    display: none;
+  }
+
+  .map-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(16rem, 0.75fr);
+    gap: clamp(2rem, 5vw, 5rem);
+    align-items: center;
+  }
+
+  .proof-map {
+    display: grid;
+    gap: 0.25rem;
+  }
+
+  .map-stage {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .map-stage-wide {
+    width: min(100%, 26rem);
+    margin-inline: auto;
+  }
+
+  .map-stage-split {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .proof-node {
+    min-height: 6.5rem;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 0.25rem;
+    background: var(--canvas);
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+  }
+
+  .proof-node:hover,
+  .proof-node.is-selected {
+    transform: translateY(-2px);
+    border-color: var(--node-color, var(--accent));
+    background: var(--node-soft, var(--accent-soft));
+  }
+
+  .proof-node[data-status="proved"] { --node-color: var(--proof); --node-soft: var(--proof-soft); }
+  .proof-node[data-status="exact"] { --node-color: var(--exact); --node-soft: var(--exact-soft); }
+  .proof-node[data-status="active"] { --node-color: var(--active); --node-soft: var(--active-soft); }
+  .proof-node[data-status="open"] { --node-color: var(--open); --node-soft: var(--open-soft); }
+
+  .proof-node span,
+  .proof-node small {
+    display: block;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .proof-node strong {
+    display: block;
+    margin-block: 0.55rem 0.4rem;
+    font-family: var(--serif);
+    font-size: 1.08rem;
+    font-weight: 500;
+    line-height: 1.15;
+  }
+
+  .map-arrow {
+    color: var(--faint);
+    font-family: var(--mono);
+    text-align: center;
+  }
+
+  .map-arrow.split,
+  .map-arrow.join {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .node-inspector {
+    padding: clamp(1.5rem, 4vw, 2.5rem);
+    border-left: 1px solid var(--border-strong);
+  }
+
+  .inspector-eyebrow,
+  .panel-kicker {
+    margin: 0;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .node-inspector h3 {
+    margin: 0.8rem 0 1.2rem;
+    font-family: var(--serif);
+    font-size: clamp(1.8rem, 3vw, 2.6rem);
+    font-weight: 400;
+    letter-spacing: -0.035em;
+    line-height: 1;
+  }
+
+  .node-inspector > p:not(.inspector-eyebrow) {
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: 1.05rem;
+    line-height: 1.55;
+  }
+
+  .node-inspector dl {
+    margin: 2rem 0 0;
+  }
+
+  .node-inspector dl div {
+    padding-block: 0.8rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .node-inspector dt {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .node-inspector dd {
+    margin: 0.4rem 0 0;
+    font-size: 0.82rem;
+    line-height: 1.5;
+  }
+
+  .physics-link {
+    display: inline-flex;
+    gap: 0.65rem;
+    align-items: center;
+    margin-top: 1.4rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid currentColor;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.045em;
+    text-decoration: none;
+    text-transform: uppercase;
+  }
+
+  .physics-link span {
+    transition: transform 180ms ease;
+  }
+
+  .physics-link:hover span,
+  .physics-link:focus-visible span {
+    transform: translate(0.16rem, -0.16rem);
+  }
+
+  .status-badge,
+  .legend span,
+  .route-fork small,
+  .slice-controls small {
+    --status-color: var(--faint);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--status-color);
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    font-weight: 650;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  [data-status="proved"] { --status-color: var(--proof); }
+  [data-status="exact"] { --status-color: var(--exact); }
+  [data-status="active"] { --status-color: var(--active); }
+  [data-status="open"] { --status-color: var(--open); }
+  [data-status="parked"] { --status-color: var(--faint); }
+
+  .status-badge::before,
+  .legend span::before,
+  .route-fork small::before,
+  .slice-controls small::before {
+    width: 0.42rem;
+    height: 0.42rem;
+    border-radius: 50%;
+    background: currentColor;
+    content: "";
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem 1.5rem;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .panel-intro {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.7fr);
+    gap: clamp(2rem, 6vw, 6rem);
+    align-items: end;
+    margin-bottom: 2.5rem;
+  }
+
+  .panel-intro h3 {
+    max-width: 44rem;
+    margin: 0.75rem 0 0;
+    font-family: var(--serif);
+    font-size: clamp(2rem, 4vw, 3.65rem);
+    font-weight: 400;
+    letter-spacing: -0.045em;
+    line-height: 0.98;
+  }
+
+  .panel-intro > p {
+    margin: 0;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: 1.02rem;
+    line-height: 1.55;
+  }
+
+  .ledger-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .ledger-filters button {
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 99rem;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 0.62rem;
+  }
+
+  .ledger-filters button.is-active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  .topic-ledger {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .topic-ledger li {
+    display: grid;
+    grid-template-columns: 3rem minmax(0, 1fr) 8rem;
+    gap: 1.25rem;
+    padding-block: 1.5rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .topic-ledger li:last-child {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .rank-number {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.8rem;
+  }
+
+  .topic-title-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .topic-title-line h4 {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: 1.35rem;
+    font-weight: 500;
+    letter-spacing: -0.025em;
+  }
+
+  .topic-body > p {
+    max-width: 47rem;
+    margin: 0.65rem 0 0;
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.55;
+  }
+
+  .topic-body .topic-boundary {
+    color: var(--faint);
+  }
+
+  .topic-boundary strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .commit-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.8rem;
+  }
+
+  .commit-list code {
+    padding: 0.25rem 0.4rem;
+    border: 1px solid var(--border);
+    border-radius: 0.15rem;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.58rem;
+  }
+
+  .leverage {
+    text-align: right;
+  }
+
+  .leverage > span {
+    font-family: var(--serif);
+    font-size: 1.6rem;
+  }
+
+  .leverage > div {
+    height: 2px;
+    margin-block: 0.5rem;
+    background: var(--surface-strong);
+  }
+
+  .leverage i {
+    display: block;
+    width: var(--score);
+    height: 100%;
+    background: var(--accent);
+  }
+
+  .leverage small {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.52rem;
+    text-transform: uppercase;
+  }
+
+  .empty-ledger {
+    padding: 3rem;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .factor-visual {
+    display: grid;
+    grid-template-columns: 1fr auto 0.65fr auto 1fr;
+    gap: 1rem;
+    align-items: stretch;
+    padding-block: 1.5rem 2.5rem;
+  }
+
+  .factor-visual > div {
+    display: grid;
+    min-height: 9rem;
+    padding: 1.25rem;
+    border: 1px solid var(--border);
+    align-content: space-between;
+  }
+
+  .factor-visual > b {
+    align-self: center;
+    font-family: var(--serif);
+    font-size: 1.8rem;
+    font-weight: 400;
+  }
+
+  .factor-visual span,
+  .factor-visual small {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    text-transform: uppercase;
+  }
+
+  .factor-visual strong {
+    font-family: var(--serif);
+    font-size: clamp(1.5rem, 3vw, 2.4rem);
+    font-weight: 400;
+  }
+
+  .factor-closed {
+    border-color: var(--proof) !important;
+    background: var(--proof-soft);
+  }
+
+  .factor-open {
+    border-color: var(--active) !important;
+    background: var(--active-soft);
+  }
+
+  .slice-explorer {
+    display: grid;
+    grid-template-columns: minmax(10rem, 0.45fr) minmax(0, 1fr);
+    border-block: 1px solid var(--border-strong);
+  }
+
+  .slice-controls {
+    display: grid;
+    border-right: 1px solid var(--border);
+  }
+
+  .slice-controls button {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .slice-controls button:last-child {
+    border-bottom: 0;
+  }
+
+  .slice-controls button.is-active {
+    background: var(--surface);
+  }
+
+  .slice-controls button > span {
+    font-family: var(--serif);
+    font-size: 1.1rem;
+  }
+
+  .slice-equation {
+    display: grid;
+    min-height: 10rem;
+    padding: clamp(1.5rem, 4vw, 3rem);
+    align-content: center;
+  }
+
+  .slice-equation > span {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.65rem;
+  }
+
+  .slice-equation > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+  }
+
+  .slice-equation button {
+    padding: 0.45rem 0.55rem;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-family: var(--serif);
+    font-size: clamp(1rem, 2vw, 1.35rem);
+  }
+
+  .slice-equation button.is-active {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
+  .slice-equation i {
+    margin-right: 0.5rem;
+    color: var(--faint);
+    font-style: normal;
+  }
+
+  .slice-detail {
+    grid-column: 2;
+    padding: 1.5rem clamp(1.5rem, 4vw, 3rem) 2.5rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .slice-detail > div {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .slice-detail > div > small {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    text-transform: uppercase;
+  }
+
+  .slice-detail h4,
+  .compact-copy h4 {
+    margin: 1rem 0 0;
+    font-family: var(--serif);
+    font-size: clamp(1.6rem, 3vw, 2.4rem);
+    font-weight: 400;
+    letter-spacing: -0.03em;
+  }
+
+  .slice-detail p,
+  .compact-copy > p:not(.panel-kicker) {
+    max-width: 43rem;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+
+  .slice-detail .slice-evidence {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.65rem;
+  }
+
+  .compact-explorer {
+    display: grid;
+    grid-template-columns: minmax(16rem, 0.6fr) minmax(0, 1fr);
+    gap: clamp(2rem, 5vw, 5rem);
+    align-items: center;
+    padding-top: 3.5rem;
+  }
+
+  .compact-copy output {
+    display: block;
+    min-height: 3.2rem;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    line-height: 1.5;
+  }
+
+  .cell-grid {
+    display: grid;
+    grid-template-columns: repeat(10, minmax(1.8rem, 1fr));
+    gap: 0.35rem;
+  }
+
+  .cell-grid button {
+    aspect-ratio: 1;
+    border: 1px solid color-mix(in srgb, var(--exact) 35%, var(--border));
+    border-radius: 0.12rem;
+    background: var(--exact-soft);
+    color: var(--exact);
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 0.52rem;
+  }
+
+  .cell-grid button[data-cell-status="proved"] {
+    border-color: var(--proof);
+    background: var(--proof-soft);
+    color: var(--proof);
+  }
+
+  .cell-grid button:hover,
+  .cell-grid button.is-selected {
+    outline: 1px solid currentColor;
+    outline-offset: 2px;
+  }
+
+  .clay-route {
+    display: grid;
+    justify-items: center;
+    padding: 1.5rem 0 3.5rem;
+  }
+
+  .route-current,
+  .clay-apex {
+    width: min(100%, 30rem);
+    padding: 1.25rem;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    text-align: center;
+  }
+
+  .route-current span,
+  .route-current small,
+  .clay-apex span,
+  .clay-apex small,
+  .route-fork article > span {
+    display: block;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    text-transform: uppercase;
+  }
+
+  .route-current strong,
+  .clay-apex strong {
+    display: block;
+    margin-block: 0.5rem;
+    font-family: var(--serif);
+    font-size: 1.35rem;
+    font-weight: 500;
+  }
+
+  .route-arrow,
+  .route-join {
+    padding: 0.7rem;
+    color: var(--faint);
+    font-family: var(--mono);
+  }
+
+  .route-break {
+    display: grid;
+    width: min(100%, 44rem);
+    margin-block: 2.2rem;
+    justify-items: center;
+  }
+
+  .route-break span {
+    padding-inline: 0.8rem;
+    background: var(--canvas);
+    color: var(--open);
+    font-family: var(--mono);
+    font-size: 0.63rem;
+    text-transform: uppercase;
+  }
+
+  .route-break b {
+    z-index: -1;
+    width: 100%;
+    margin-top: -0.45rem;
+    border-top: 1px dashed var(--open);
+  }
+
+  .route-fork {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .route-fork article {
+    padding: clamp(1.25rem, 3vw, 2rem);
+    border: 1px solid var(--border);
+  }
+
+  .route-fork h4 {
+    margin: 0.7rem 0;
+    font-family: var(--serif);
+    font-size: 1.4rem;
+    font-weight: 500;
+  }
+
+  .route-fork p {
+    min-height: 4.6rem;
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.5;
+  }
+
+  .clay-apex {
+    border-color: var(--open);
+    background: var(--open-soft);
+  }
+
+  .steering-gate {
+    padding-top: 2rem;
+    border-top: 1px solid var(--border-strong);
+  }
+
+  .steering-gate > div {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr);
+    gap: 1rem;
+    max-width: 52rem;
+    padding-block: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .steering-gate > div > span {
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.7rem;
+  }
+
+  .steering-gate p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.55;
+  }
+
+  .steering-gate strong {
+    color: var(--text);
+  }
+
+  @media (max-width: 850px) {
+    .map-layout,
+    .panel-intro,
+    .compact-explorer {
+      grid-template-columns: 1fr;
+    }
+
+    .node-inspector {
+      border-top: 1px solid var(--border-strong);
+      border-left: 0;
+    }
+
+    .factor-visual {
+      grid-template-columns: 1fr;
+    }
+
+    .factor-visual > b {
+      text-align: center;
+    }
+  }
+
+  @media (max-width: 650px) {
+    .atlas-head {
+      display: grid;
+      align-items: start;
+    }
+
+    .snapshot {
+      justify-content: start;
+    }
+
+    .map-stage-split {
+      grid-template-columns: 1fr;
+    }
+
+    .map-arrow.split,
+    .map-arrow.join {
+      display: block;
+    }
+
+    .map-arrow.split span:not(:nth-child(2)),
+    .map-arrow.join span:not(:nth-child(2)) {
+      display: none;
+    }
+
+    .topic-ledger li {
+      grid-template-columns: 2rem minmax(0, 1fr);
+    }
+
+    .leverage {
+      grid-column: 2;
+      text-align: left;
+    }
+
+    .slice-explorer {
+      grid-template-columns: 1fr;
+    }
+
+    .slice-controls {
+      grid-template-columns: repeat(5, 1fr);
+      overflow-x: auto;
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .slice-controls button {
+      display: grid;
+      min-width: 5.6rem;
+      border-right: 1px solid var(--border);
+      border-bottom: 0;
+    }
+
+    .slice-detail {
+      grid-column: 1;
+    }
+
+    .cell-grid {
+      grid-template-columns: repeat(8, 1fr);
+    }
+
+    .route-fork {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

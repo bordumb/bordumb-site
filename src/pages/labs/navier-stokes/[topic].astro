@@ -1,0 +1,308 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import NavierStokesPhysicsLab from "@/components/labs/NavierStokesPhysicsLab.astro";
+import {
+  physicsTopicById,
+  physicsTopics,
+  type PhysicsTopic,
+} from "@/components/labs/navierStokesPhysics";
+
+export function getStaticPaths() {
+  return physicsTopics.map((topic) => ({
+    params: { topic: topic.id },
+    props: { topic },
+  }));
+}
+
+type Props = {
+  topic: PhysicsTopic;
+};
+
+const { topic } = Astro.props;
+const previous = topic.previous ? physicsTopicById(topic.previous) : undefined;
+const next = topic.next ? physicsTopicById(topic.next) : undefined;
+---
+
+<BaseLayout
+  title={`${topic.nav}: the physics inside the proof — bordumb`}
+  description={topic.description}
+>
+  <article class="physics-page page-shell">
+    <header class="physics-hero">
+      <div class="hero-number" aria-hidden="true">{topic.index}</div>
+
+      <div class="hero-copy">
+        <a class="back-link" href="/labs/navier-stokes-proof-atlas/">
+          <span aria-hidden="true">←</span> Proof atlas
+        </a>
+        <p class="eyebrow">Navier–Stokes · physical picture</p>
+        <h1>{topic.title}<br /><em>{topic.titleAccent}</em></h1>
+        <p class="hero-deck">{topic.deck}</p>
+      </div>
+
+      <aside class="hero-question">
+        <span>Hold this question</span>
+        <strong>{topic.physicalQuestion}</strong>
+        <p>
+          Play with all four scenes. The controls change the picture, while the
+          proof boundary below says exactly which part is mathematics and which
+          part is still intuition.
+        </p>
+      </aside>
+    </header>
+
+    <NavierStokesPhysicsLab topic={topic} />
+
+    <section class="child-note" aria-labelledby="child-note-title">
+      <p class="eyebrow">The five-year-old version</p>
+      <h2 id="child-note-title">Water can stretch its own swirls.</h2>
+      <p>
+        Thick honey smooths bumps quickly. Fast water can also pull a little
+        swirl into a longer, sharper one. The Clay problem asks whether the
+        smoothing always catches up before a perfectly smooth three-dimensional
+        flow makes an infinitely sharp spot. These pictures show the tug of war;
+        they are not a numerical simulation or a proof by themselves.
+      </p>
+    </section>
+
+    <nav class="topic-footer" aria-label="Adjacent physics topics">
+      <div>
+        {previous ? (
+          <a href={`/labs/navier-stokes/${previous.id}/`}>
+            <span>Previous picture</span>
+            <strong>← {previous.nav}</strong>
+          </a>
+        ) : (
+          <a href="/labs/navier-stokes-proof-atlas/">
+            <span>Research view</span>
+            <strong>← Proof atlas</strong>
+          </a>
+        )}
+      </div>
+      <div class="topic-footer-next">
+        {next ? (
+          <a href={`/labs/navier-stokes/${next.id}/`}>
+            <span>Next picture</span>
+            <strong>{next.nav} →</strong>
+          </a>
+        ) : (
+          <a href="/labs/navier-stokes-proof-atlas/#map">
+            <span>Return to the work</span>
+            <strong>Proof atlas →</strong>
+          </a>
+        )}
+      </div>
+    </nav>
+  </article>
+</BaseLayout>
+
+<style>
+  .physics-page {
+    padding-bottom: clamp(5rem, 10vw, 8rem);
+  }
+
+  .physics-hero {
+    display: grid;
+    grid-template-columns: 4rem minmax(0, 1fr) minmax(17rem, 0.38fr);
+    gap: clamp(1.5rem, 4vw, 4rem);
+    align-items: end;
+    padding-block: clamp(3.5rem, 8vw, 7rem) clamp(2.75rem, 6vw, 5rem);
+  }
+
+  .hero-number {
+    align-self: stretch;
+    padding-top: 2rem;
+    border-right: 1px solid var(--border);
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+  }
+
+  .back-link {
+    display: inline-flex;
+    gap: 0.55rem;
+    align-items: center;
+    margin-bottom: clamp(2.75rem, 6vw, 5rem);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.05em;
+    text-decoration: none;
+    text-transform: uppercase;
+  }
+
+  .back-link:hover,
+  .back-link:focus-visible {
+    color: var(--accent);
+  }
+
+  .eyebrow,
+  .hero-question > span {
+    margin: 0;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    margin: 1.1rem 0 1.5rem;
+    font-family: var(--serif);
+    font-size: clamp(3.2rem, 7vw, 6.9rem);
+    font-weight: 400;
+    letter-spacing: -0.065em;
+    line-height: 0.86;
+  }
+
+  h1 em {
+    color: var(--accent);
+    font-weight: 400;
+  }
+
+  .hero-deck {
+    max-width: 48rem;
+    margin: 0;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: clamp(1.08rem, 1.8vw, 1.3rem);
+    line-height: 1.58;
+  }
+
+  .hero-question {
+    padding: 1.35rem 0 0 1.5rem;
+    border-top: 1px solid var(--border-strong);
+    border-left: 1px solid var(--border);
+  }
+
+  .hero-question strong {
+    display: block;
+    margin-top: 0.8rem;
+    font-family: var(--serif);
+    font-size: 1.5rem;
+    font-weight: 500;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+  }
+
+  .hero-question p {
+    margin: 1rem 0 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1.6;
+  }
+
+  .child-note {
+    display: grid;
+    grid-template-columns: minmax(12rem, 0.3fr) minmax(15rem, 0.45fr) minmax(18rem, 0.7fr);
+    gap: clamp(1.5rem, 4vw, 4rem);
+    align-items: start;
+    padding-block: clamp(4rem, 8vw, 7rem);
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  .child-note h2 {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: clamp(2rem, 4vw, 3.5rem);
+    font-weight: 400;
+    letter-spacing: -0.045em;
+    line-height: 0.98;
+  }
+
+  .child-note > p:last-child {
+    margin: 0;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: 1.05rem;
+    line-height: 1.65;
+  }
+
+  .topic-footer {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding-top: 2.5rem;
+  }
+
+  .topic-footer > div + div {
+    border-left: 1px solid var(--border);
+  }
+
+  .topic-footer a {
+    display: grid;
+    gap: 0.55rem;
+    padding: 1rem 1.5rem;
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .topic-footer-next a {
+    justify-items: end;
+    text-align: right;
+  }
+
+  .topic-footer span {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .topic-footer strong {
+    font-family: var(--serif);
+    font-size: 1.2rem;
+    font-weight: 500;
+  }
+
+  .topic-footer a:hover strong,
+  .topic-footer a:focus-visible strong {
+    color: var(--accent);
+  }
+
+  @media (max-width: 900px) {
+    .physics-hero {
+      grid-template-columns: 2.5rem minmax(0, 1fr);
+    }
+
+    .hero-question {
+      grid-column: 2;
+      border-left: 0;
+    }
+
+    .child-note {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .child-note > p:last-child {
+      grid-column: 2;
+    }
+  }
+
+  @media (max-width: 650px) {
+    .physics-hero,
+    .child-note,
+    .topic-footer {
+      grid-template-columns: 1fr;
+    }
+
+    .hero-number {
+      display: none;
+    }
+
+    .hero-question,
+    .child-note > p:last-child {
+      grid-column: 1;
+    }
+
+    .hero-question {
+      padding-left: 0;
+    }
+
+    .topic-footer > div + div {
+      border-top: 1px solid var(--border);
+      border-left: 0;
+    }
+  }
+</style>

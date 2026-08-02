@@ -1,0 +1,309 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import NavierStokesProofAtlas from "@/components/labs/NavierStokesProofAtlas.astro";
+---
+
+<BaseLayout
+  title="Navier–Stokes proof atlas — bordumb"
+  description="An interactive map of the sparse Gaussian certificate, its ranked proof ledger, the active radial-tail decomposition, and the remaining logical distance to the Clay problem."
+>
+  <article class="atlas-page page-shell">
+    <header class="atlas-hero">
+      <div class="hero-index" aria-hidden="true">
+        <span>NS</span>
+        <i></i>
+        <small>2026·08·02</small>
+      </div>
+
+      <div class="hero-copy">
+        <p class="eyebrow">Navier–Stokes · formal proof observatory</p>
+        <h1>One obstruction,<br /><em>under a microscope.</em></h1>
+        <p class="hero-deck">
+          The agent is converting an explicit Gaussian witness into a global,
+          kernel-checked no-go theorem. This atlas shows the exact object under
+          analysis, what each commit established, and where the work stops
+          short of the Millennium problem.
+        </p>
+      </div>
+
+      <aside class="hero-boundary">
+        <span>Current boundary</span>
+        <strong>Twofold-X radial tail</strong>
+        <p>
+          Two radial coefficients are closed. Five angular slices must erase
+          the remaining degree-ten quotient; slice zero is the active bridge.
+        </p>
+        <dl>
+          <div>
+            <dt>Evidence</dt>
+            <dd>Exact rational + Lean kernel</dd>
+          </div>
+          <div>
+            <dt>Conclusion</dt>
+            <dd>Closure obstruction only</dd>
+          </div>
+        </dl>
+      </aside>
+    </header>
+
+    <NavierStokesProofAtlas />
+
+    <section class="reading-note" aria-labelledby="reading-note-title">
+      <div>
+        <p class="eyebrow">How to read the atlas</p>
+        <h2 id="reading-note-title">A child theorem does not solve its parent.</h2>
+      </div>
+      <div class="reading-columns">
+        <p>
+          <strong>Kernel-checked</strong> means Lean accepted the theorem and
+          its reported dependencies contain only the standard foundational
+          axioms used throughout Mathlib. It does not mean every theorem that
+          imports it is complete.
+        </p>
+        <p>
+          <strong>Exact certificate</strong> means rational computation found
+          a finite proof object without floating-point theorem data. It becomes
+          a formal theorem only after Lean independently checks its generated
+          inequalities and the assembly covers the stated domain.
+        </p>
+        <p>
+          <strong>Closure obstruction</strong> means the proposed universal
+          estimate cannot hold in its current form. Eliminating that strategy
+          narrows the search; it supplies neither a global regularity estimate
+          nor a finite-time singular solution.
+        </p>
+      </div>
+    </section>
+
+    <footer class="atlas-footer">
+      <p>
+        The companion visual study explains the vorticity geometry that
+        motivated the formal program before the Gaussian obstruction emerged.
+      </p>
+      <a class="text-link" href="/labs/vortex-stretching">
+        Explore the vortex geometry
+      </a>
+    </footer>
+  </article>
+</BaseLayout>
+
+<style>
+  .atlas-page {
+    padding-bottom: clamp(5rem, 10vw, 8rem);
+  }
+
+  .atlas-hero {
+    display: grid;
+    grid-template-columns: 4rem minmax(0, 1fr) minmax(17rem, 0.38fr);
+    gap: clamp(1.5rem, 4vw, 4rem);
+    align-items: end;
+    padding-block: clamp(4rem, 9vw, 8rem) clamp(3rem, 6vw, 5rem);
+  }
+
+  .hero-index {
+    display: grid;
+    height: 100%;
+    min-height: 15rem;
+    justify-items: center;
+    color: var(--faint);
+    font-family: var(--mono);
+  }
+
+  .hero-index span {
+    color: var(--accent);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+  }
+
+  .hero-index i {
+    width: 1px;
+    height: 100%;
+    min-height: 8rem;
+    background: var(--border-strong);
+  }
+
+  .hero-index small {
+    align-self: end;
+    font-size: 0.52rem;
+    letter-spacing: 0.05em;
+    writing-mode: vertical-rl;
+  }
+
+  .hero-copy h1 {
+    max-width: 56rem;
+    margin: 1rem 0 0;
+    font-family: var(--serif);
+    font-size: clamp(3.25rem, 7.5vw, 7rem);
+    font-weight: 400;
+    letter-spacing: -0.063em;
+    line-height: 0.88;
+  }
+
+  .hero-copy h1 em {
+    color: var(--accent);
+    font-weight: 400;
+  }
+
+  .hero-deck {
+    max-width: 43rem;
+    margin: clamp(2rem, 5vw, 3.5rem) 0 0;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: clamp(1.08rem, 1.8vw, 1.3rem);
+    line-height: 1.58;
+  }
+
+  .hero-boundary {
+    padding: 1.25rem 0 0 1.5rem;
+    border-top: 1px solid var(--border-strong);
+    border-left: 1px solid var(--border);
+  }
+
+  .hero-boundary > span {
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .hero-boundary > strong {
+    display: block;
+    margin-top: 0.8rem;
+    font-family: var(--serif);
+    font-size: 1.45rem;
+    font-weight: 500;
+    letter-spacing: -0.025em;
+  }
+
+  .hero-boundary > p {
+    margin: 0.8rem 0 1.5rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1.55;
+  }
+
+  .hero-boundary dl {
+    margin: 0;
+  }
+
+  .hero-boundary dl div {
+    display: grid;
+    grid-template-columns: 5rem minmax(0, 1fr);
+    gap: 0.75rem;
+    padding-block: 0.55rem;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    line-height: 1.45;
+  }
+
+  .hero-boundary dt {
+    color: var(--faint);
+    text-transform: uppercase;
+  }
+
+  .hero-boundary dd {
+    margin: 0;
+    color: var(--text);
+  }
+
+  .reading-note {
+    display: grid;
+    grid-template-columns: minmax(16rem, 0.45fr) minmax(0, 1fr);
+    gap: clamp(2rem, 6vw, 6rem);
+    padding-block: clamp(4rem, 8vw, 7rem);
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  .reading-note h2 {
+    max-width: 25rem;
+    margin: 0.8rem 0 0;
+    font-family: var(--serif);
+    font-size: clamp(2rem, 4vw, 3.5rem);
+    font-weight: 400;
+    letter-spacing: -0.045em;
+    line-height: 1;
+  }
+
+  .reading-columns {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+  }
+
+  .reading-columns p {
+    margin: 0;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1.6;
+  }
+
+  .reading-columns strong {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .atlas-footer {
+    display: flex;
+    gap: 2rem;
+    align-items: end;
+    justify-content: space-between;
+    padding-top: 3rem;
+  }
+
+  .atlas-footer p {
+    max-width: 40rem;
+    margin: 0;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: 1.05rem;
+    line-height: 1.55;
+  }
+
+  @media (max-width: 900px) {
+    .atlas-hero {
+      grid-template-columns: 2.5rem minmax(0, 1fr);
+    }
+
+    .hero-boundary {
+      grid-column: 2;
+      border-left: 0;
+    }
+
+    .reading-note {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 680px) {
+    .atlas-hero {
+      grid-template-columns: 1fr;
+    }
+
+    .hero-index {
+      display: none;
+    }
+
+    .hero-boundary {
+      grid-column: 1;
+      padding-left: 0;
+    }
+
+    .reading-columns {
+      grid-template-columns: 1fr;
+    }
+
+    .atlas-footer {
+      display: grid;
+      align-items: start;
+    }
+  }
+</style>
