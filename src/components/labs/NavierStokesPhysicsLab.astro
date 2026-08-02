@@ -1,0 +1,1135 @@
+---
+import { physicsTopics, type PhysicsTopic } from "./navierStokesPhysics";
+
+type Props = {
+  topic: PhysicsTopic;
+};
+
+const { topic } = Astro.props;
+---
+
+<section
+  class="physics-lab"
+  id={`physics-lab-${topic.id}`}
+  data-physics-lab
+  data-topic={JSON.stringify(topic)}
+  aria-labelledby="physics-scene-title"
+>
+  <nav class="topic-rail" aria-label="Physics topics">
+    {physicsTopics.map((item) => (
+      <a
+        href={`/labs/navier-stokes/${item.id}/`}
+        aria-current={item.id === topic.id ? "page" : undefined}
+      >
+        <span>{item.index}</span>
+        {item.nav}
+      </a>
+    ))}
+  </nav>
+
+  <div class="scene-rail" role="tablist" aria-label={`${topic.nav} scenes`}>
+    {topic.scenes.map((scene, index) => (
+      <button
+        type="button"
+        role="tab"
+        class={index === 0 ? "is-active" : undefined}
+        aria-selected={index === 0 ? "true" : "false"}
+        data-physics-scene={index}
+      >
+        <span>{String(index + 1).padStart(2, "0")}</span>
+        {scene.tab}
+      </button>
+    ))}
+  </div>
+
+  <div class="physics-stage">
+    <div class="physics-canvas-wrap">
+      <div class="canvas-head">
+        <span id="physics-visual-label">{topic.scenes[0].visualLabel}</span>
+        <button type="button" class="physics-motion" aria-pressed="false">
+          Pause motion
+        </button>
+      </div>
+      <canvas
+        class="physics-canvas"
+        role="img"
+        aria-label={topic.scenes[0].visualLabel}
+      ></canvas>
+      <div class="canvas-scale" aria-hidden="true">
+        <span>physical picture</span>
+        <i></i>
+        <span>mathematical object</span>
+      </div>
+    </div>
+
+    <article class="physics-copy" aria-live="polite">
+      <p class="scene-count" id="physics-scene-count">01 / 04</p>
+      <h2 id="physics-scene-title">{topic.scenes[0].headline}</h2>
+      <p class="scene-story" id="physics-scene-story">{topic.scenes[0].story}</p>
+
+      <div class="physics-equation">
+        <span id="physics-equation">{topic.scenes[0].equation}</span>
+        <small id="physics-equation-note">{topic.scenes[0].equationNote}</small>
+      </div>
+
+      <label class="physics-control">
+        <span>
+          <span id="physics-control-name">{topic.scenes[0].control.label}</span>
+          <output id="physics-control-value">
+            {topic.scenes[0].control.value}{topic.scenes[0].control.unit}
+          </output>
+        </span>
+        <input
+          class="physics-range"
+          type="range"
+          min={topic.scenes[0].control.min}
+          max={topic.scenes[0].control.max}
+          value={topic.scenes[0].control.value}
+          aria-label={topic.scenes[0].control.label}
+        />
+      </label>
+
+      <div class="watch-note">
+        <span>Watch</span>
+        <p id="physics-watch">{topic.scenes[0].watch}</p>
+      </div>
+
+      <div class="scene-actions">
+        <button type="button" class="physics-previous" disabled>Previous</button>
+        <button type="button" class="physics-next">Next: {topic.scenes[1].tab}</button>
+      </div>
+    </article>
+  </div>
+
+  <div class="proof-boundary">
+    <div>
+      <p class="proof-label">Physical claim</p>
+      <strong>{topic.physicalQuestion}</strong>
+    </div>
+    <div class="boundary-arrow" aria-hidden="true">→</div>
+    <div>
+      <p class="proof-label">Formal boundary</p>
+      <strong id="physics-proof">{topic.scenes[0].proof}</strong>
+      <span class="proof-status" id="physics-proof-status" data-status={topic.scenes[0].proofStatus}>
+        {topic.scenes[0].proofStatus}
+      </span>
+    </div>
+    <div class="boundary-arrow" aria-hidden="true">→</div>
+    <div>
+      <p class="proof-label">Larger question</p>
+      <strong>{topic.proofQuestion}</strong>
+    </div>
+  </div>
+</section>
+
+<script>
+  type Scene = {
+    tab: string;
+    visualLabel: string;
+    headline: string;
+    story: string;
+    equation: string;
+    equationNote: string;
+    watch: string;
+    proof: string;
+    proofStatus: "proved" | "active" | "open";
+    mode: string;
+    control: {
+      label: string;
+      min: number;
+      max: number;
+      value: number;
+      unit: string;
+    };
+  };
+
+  type Topic = {
+    id: string;
+    scenes: Scene[];
+  };
+
+  const clamp = (value: number, min: number, max: number) =>
+    Math.max(min, Math.min(max, value));
+
+  document.querySelectorAll<HTMLElement>("[data-physics-lab]").forEach((root) => {
+    const topic = JSON.parse(root.dataset.topic ?? "{}") as Topic;
+    const canvas = root.querySelector<HTMLCanvasElement>(".physics-canvas")!;
+    const ctx = canvas.getContext("2d")!;
+    const sceneButtons = Array.from(
+      root.querySelectorAll<HTMLButtonElement>("[data-physics-scene]"),
+    );
+    const previous = root.querySelector<HTMLButtonElement>(".physics-previous")!;
+    const next = root.querySelector<HTMLButtonElement>(".physics-next")!;
+    const motion = root.querySelector<HTMLButtonElement>(".physics-motion")!;
+    const range = root.querySelector<HTMLInputElement>(".physics-range")!;
+    const visualLabel = root.querySelector<HTMLElement>("#physics-visual-label")!;
+    const count = root.querySelector<HTMLElement>("#physics-scene-count")!;
+    const title = root.querySelector<HTMLElement>("#physics-scene-title")!;
+    const story = root.querySelector<HTMLElement>("#physics-scene-story")!;
+    const equation = root.querySelector<HTMLElement>("#physics-equation")!;
+    const equationNote = root.querySelector<HTMLElement>("#physics-equation-note")!;
+    const controlName = root.querySelector<HTMLElement>("#physics-control-name")!;
+    const controlValue = root.querySelector<HTMLOutputElement>("#physics-control-value")!;
+    const watch = root.querySelector<HTMLElement>("#physics-watch")!;
+    const proof = root.querySelector<HTMLElement>("#physics-proof")!;
+    const proofStatus = root.querySelector<HTMLElement>("#physics-proof-status")!;
+
+    let activeScene = 0;
+    let value = topic.scenes[0].control.value;
+    let elapsed = 0;
+    let previousTime = performance.now();
+    let running = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let pointerX = 0.5;
+    let pointerY = 0.5;
+    let dragging = false;
+
+    const colors = () => {
+      const styles = getComputedStyle(document.documentElement);
+      return {
+        canvas: styles.getPropertyValue("--canvas").trim(),
+        surface: styles.getPropertyValue("--surface").trim(),
+        surfaceStrong: styles.getPropertyValue("--surface-strong").trim(),
+        text: styles.getPropertyValue("--text").trim(),
+        muted: styles.getPropertyValue("--muted").trim(),
+        faint: styles.getPropertyValue("--faint").trim(),
+        border: styles.getPropertyValue("--border-strong").trim(),
+        accent: styles.getPropertyValue("--accent").trim(),
+        warm: styles.getPropertyValue("--physics-warm").trim(),
+        blue: styles.getPropertyValue("--physics-blue").trim(),
+        active: styles.getPropertyValue("--physics-warm").trim(),
+        proof: styles.getPropertyValue("--physics-proof").trim(),
+      };
+    };
+
+    const line = (
+      x1: number,
+      y1: number,
+      x2: number,
+      y2: number,
+      color: string,
+      width = 1,
+      alpha = 1,
+    ) => {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    const arrow = (
+      x: number,
+      y: number,
+      angle: number,
+      length: number,
+      color: string,
+      width = 1.5,
+      alpha = 1,
+    ) => {
+      const x1 = x - Math.cos(angle) * length * 0.42;
+      const y1 = y - Math.sin(angle) * length * 0.42;
+      const x2 = x + Math.cos(angle) * length * 0.58;
+      const y2 = y + Math.sin(angle) * length * 0.58;
+      line(x1, y1, x2, y2, color, width, alpha);
+      const head = Math.min(6, length * 0.23);
+      line(x2, y2, x2 - Math.cos(angle - 0.55) * head, y2 - Math.sin(angle - 0.55) * head, color, width, alpha);
+      line(x2, y2, x2 - Math.cos(angle + 0.55) * head, y2 - Math.sin(angle + 0.55) * head, color, width, alpha);
+    };
+
+    const dot = (x: number, y: number, radius: number, color: string, alpha = 1) => {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    };
+
+    const label = (
+      text: string,
+      x: number,
+      y: number,
+      color: string,
+      align: CanvasTextAlign = "left",
+      size = 11,
+    ) => {
+      ctx.fillStyle = color;
+      ctx.font = `600 ${size}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+      ctx.textAlign = align;
+      ctx.fillText(text, x, y);
+    };
+
+    const softGrid = (width: number, height: number, color: string) => {
+      ctx.save();
+      ctx.globalAlpha = 0.17;
+      for (let x = 34; x < width; x += 38) {
+        for (let y = 34; y < height; y += 38) dot(x, y, 1, color);
+      }
+      ctx.restore();
+    };
+
+    const drawFlow = (width: number, height: number, amount: number, c: ReturnType<typeof colors>) => {
+      const cx = width * 0.5;
+      const cy = height * 0.5;
+      softGrid(width, height, c.muted);
+      for (let ring = 0; ring < 5; ring += 1) {
+        const radius = 42 + ring * 38;
+        ctx.save();
+        ctx.strokeStyle = c.border;
+        ctx.lineWidth = 0.75;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        const count = 8 + ring * 3;
+        for (let i = 0; i < count; i += 1) {
+          const phase = (i / count) * Math.PI * 2 + elapsed * (0.12 + amount * 0.55) / (ring + 1);
+          const x = cx + Math.cos(phase) * radius;
+          const y = cy + Math.sin(phase) * radius * 0.72;
+          arrow(x, y, phase + Math.PI / 2, 13 + amount * 8, c.accent, 1.3, 0.5 + amount * 0.4);
+          dot(x, y, 2.5, ring % 2 ? c.blue : c.warm, 0.85);
+        }
+      }
+      label("velocity carries each speck", 22, height - 22, c.muted);
+    };
+
+    const drawSpin = (width: number, height: number, amount: number, c: ReturnType<typeof colors>) => {
+      drawFlow(width, height, amount * 0.55, c);
+      const cx = width * 0.5;
+      const cy = height * 0.5;
+      const radius = 36;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(elapsed * (0.5 + amount * 1.8));
+      line(-radius, 0, radius, 0, c.warm, 4);
+      line(0, -radius, 0, radius, c.warm, 4);
+      dot(-radius, 0, 7, c.warm);
+      dot(radius, 0, 7, c.warm);
+      dot(0, -radius, 7, c.warm);
+      dot(0, radius, 7, c.warm);
+      ctx.restore();
+      dot(cx, cy, 9, c.canvas);
+      arrow(cx, cy - 92, -Math.PI / 2, 42 + amount * 28, c.warm, 3);
+      label("tiny paddle wheel", cx, cy + 64, c.text, "center");
+      label("ω", cx + 18, cy - 105, c.warm, "left", 14);
+    };
+
+    const drawArrows = (width: number, height: number, amount: number, c: ReturnType<typeof colors>) => {
+      const columns = 9;
+      const rows = 5;
+      for (let row = 0; row < rows; row += 1) {
+        for (let column = 0; column < columns; column += 1) {
+          const x = ((column + 0.7) / columns) * width;
+          const y = ((row + 0.7) / rows) * height;
+          const noise = Math.sin(column * 2.13 + row * 1.71) * 1.1;
+          const angle = noise * (1 - amount) - Math.PI / 2 * amount;
+          const strength = 18 + 16 * (0.5 + 0.5 * Math.sin(column + row * 0.7));
+          arrow(x, y, angle, strength, amount > 0.7 ? c.accent : c.blue, 2, 0.8);
+        }
+      }
+      label(amount > 0.72 ? "coherent bundle" : "neighboring spin axes disagree", width / 2, height - 22, c.muted, "center");
+    };
+
+    const drawSpike = (width: number, height: number, amount: number, c: ReturnType<typeof colors>) => {
+      const base = height * 0.82;
+      const center = width * 0.5;
+      softGrid(width, height, c.muted);
+      ctx.save();
+      ctx.strokeStyle = c.accent;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let i = 0; i <= 100; i += 1) {
+        const x = (i / 100) * width;
+        const dx = (x - center) / (85 - amount * 56);
+        const y = base - Math.exp(-dx * dx) * (85 + amount * 190);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.restore();
+      arrow(center, base - 54 - amount * 190, -Math.PI / 2, 35 + amount * 100, c.warm, 3);
+      label("finite", 22, base + 30, c.muted);
+      label("danger: taller + narrower", width - 22, 28, c.warm, "right");
+    };
+
+    const drawTube = (width: number, height: number, amount: number, c: ReturnType<typeof colors>) => {
+      const cx = width / 2;
+      const cy = height / 2;
+      const tubeWidth = width * (0.34 + amount * 0.28);
+      const tubeHeight = height * (0.35 - amount * 0.17);
+      ctx.save();
+      ctx.fillStyle = c.surface;
+      ctx.strokeStyle = c.accent;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(cx - tubeWidth / 2, cy - tubeHeight / 2, tubeWidth, tubeHeight, tubeHeight / 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+      const stripes = 9;
+      for (let i = 0; i < stripes; i += 1) {
+        const phase = i / (stripes - 1);
+        const x = cx - tubeWidth * 0.42 + phase * tubeWidth * 0.84;
+        const angle = elapsed * (0.5 + amount * 1.5) + phase * Math.PI * 5;
+        const y = cy + Math.sin(angle) * tubeHeight * 0.32;
+        dot(x, y, 3 + amount * 2, c.warm, 0.85);
+      }
+      arrow(cx, cy - tubeHeight * 0.9, 0, 55 + amount * 75, c.warm, 3);
+      label("longer", cx + tubeWidth / 2, cy + tubeHeight / 2 + 28, c.muted, "right");
+      label("thinner", cx, cy - tubeHeight / 2 - 18, c.muted, "center");
+    };
+
+    const drawAmplify = (width: number, height: number, amount: number, c: ReturnType<typeof colors>) => {
+      const left = 48;
+      const bottom = height - 46;
+      const bars = 10;
+      line(left, 26, left, bottom, c.border);
+      line(left, bottom, width - 28, bottom, c.border);
+      for (let i = 0; i < bars; i += 1) {
+        const growth = Math.exp((i / bars) * (0.45 + amount * 2.05));
+        const maxGrowth = Math.exp(2.5);
+        const barHeight = (growth / maxGrowth) * (height - 95);
+        const x = left + 18 + i * ((width - left - 50) / bars);
+        ctx.fillStyle = i > 7 ? c.warm : c.accent;
+        ctx.globalAlpha = 0.48 + i * 0.045;
+        ctx.fillRect(x, bottom - barHeight, 14, barHeight);
+      }
+      ctx.globalAlpha = 1;
+      label("time →", width - 30, bottom + 25, c.muted, "right");
+      label("spin", left - 14, 30, c.muted, "right");
+    };
+
+    const drawSmooth = (width: number, height: number, amount: number, c: ReturnType<typeof colors>) => {
+      const columns = 27;
+      const base = height * 0.82;
+      const spacing = (width - 54) / columns;
+      for (let i = 0; i < columns; i += 1) {
+        const x = 27 + i * spacing;
+        const dx = (i - columns / 2) / (2.2 + amount * 4.5);
+        const spike = Math.exp(-dx * dx) * (175 - amount * 60);
+        const rough = Math.sin(i * 2.3) * 34 * (1 - amount);
+        const h = 22 + spike + rough;
+        arrow(x, base, -Math.PI / 2, Math.max(8, h), amount > 0.5 ? c.accent : c.warm, 2, 0.8);
+      }
+      line(22, base + 6, width - 22, base + 6, c.border);
+      label(amount > 0.58 ? "neighbors have shared the peak" : "sharp disagreement", width / 2, height - 18, c.muted, "center");
+    };
+
+    const drawBalance = (width: number, height: number, amount: number, c: ReturnType<typeof colors>) => {
+      const cx = width / 2;
+      const cy = height * 0.44;
+      const demand = 0.35 + amount * 0.65;
+      const payment = 0.58;
+      const tilt = (demand - payment) * 0.35;
+      line(cx, cy - 25, cx, cy + 120, c.border, 4);
+      line(cx - 155, cy + tilt * 100, cx + 155, cy - tilt * 100, c.text, 4);
+      const leftY = cy + tilt * 100;
+      const rightY = cy - tilt * 100;
+      line(cx - 130, leftY, cx - 130, leftY + 74, c.border);
+      line(cx + 130, rightY, cx + 130, rightY + 74, c.border);
+      ctx.fillStyle = c.warm;
+      ctx.fillRect(cx - 170, leftY + 74, 80, 10 + demand * 50);
+      ctx.fillStyle = c.accent;
+      ctx.fillRect(cx + 90, rightY + 74, 80, 10 + payment * 50);
+      label("stretching bill", cx - 130, leftY + 145, c.warm, "center");
+      label("viscous payment", cx + 130, rightY + 145, c.accent, "center");
+      label(demand > payment ? "proposed rule falls short" : "payment covers this sample", cx, 30, demand > payment ? c.warm : c.accent, "center");
+    };
+
+    const drawLensField = (
+      width: number,
+      height: number,
+      radius: number,
+      c: ReturnType<typeof colors>,
+      centerX = pointerX * width,
+      centerY = pointerY * height,
+    ) => {
+      softGrid(width, height, c.muted);
+      for (let row = 0; row < 6; row += 1) {
+        for (let column = 0; column < 10; column += 1) {
+          const x = ((column + 0.55) / 10) * width;
+          const y = ((row + 0.55) / 6) * height;
+          const dx = x - centerX;
+          const dy = y - centerY;
+          const weight = Math.exp(-(dx * dx + dy * dy) / (radius * radius));
+          const angle = Math.sin(column * 0.9 + row) * 0.8 - Math.PI / 2;
+          arrow(x, y, angle, 17 + weight * 22, weight > 0.45 ? c.warm : c.blue, 1.8, 0.25 + weight * 0.75);
+        }
+      }
+      const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+      gradient.addColorStop(0, "rgba(127,184,168,0.22)");
+      gradient.addColorStop(1, "rgba(127,184,168,0)");
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = c.accent;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      dot(centerX, centerY, 5, c.accent);
+      return { centerX, centerY };
+    };
+
+    const drawLens = (width: number, height: number, amount: number, c: ReturnType<typeof colors>) => {
+      const radius = 55 + amount * 100;
+      drawLensField(width, height, radius, c);
+      label("drag the soft lens", 20, height - 18, c.muted);
+    };
+
+    const drawCenter = (width: number, height: number, amount: number, c: ReturnType<typeof colors>) => {
+      const centerX = width * (0.16 + amount * 0.68);
+      const centerY = height * 0.47;
+      drawLensField(width, height, 88, c, centerX, centerY);
+      const reading = Math.exp(-Math.pow((amount - 0.56) / 0.21, 2));
+      ctx.fillStyle = c.surface;
+      ctx.fillRect(18, 18, 150, 48);
+      label("lens reading", 30, 38, c.muted);
+      label((reading * 35).toFixed(1), 152, 51, c.accent, "right", 19);
+    };
+
+    const drawScale = (width: number, height: number, amount: number, c: ReturnType<typeof colors>) => {
+      const radius = 38 + amount * 145;
+      const { centerX, centerY } = drawLensField(width, height, radius, c, width / 2, height / 2);
+      label(amount < 0.35 ? "detail" : amount > 0.72 ? "broad average" : "stationary neighborhood", centerX, centerY + radius + 24, c.muted, "center");
+      line(34, height - 30, width - 34, height - 30, c.border);
+      const marker = 34 + amount * (width - 68);
+      dot(marker, height - 30, 5, c.accent);
+      label("small s", 34, height - 10, c.faint);
+      label("large s", width - 34, height - 10, c.faint, "right");
+    };
+
+    const drawHeat = (width: number, height: number, amount: number, c: ReturnType<typeof colors>) => {
+      const cx = width / 2;
+      const cy = height / 2;
+      const spread = 24 + amount * 135;
+      for (let i = 0; i < 100; i += 1) {
+        const angle = i * 2.399 + elapsed * 0.04;
+        const radial = Math.sqrt(i / 100) * spread;
+        const x = cx + Math.cos(angle) * radial;
+        const y = cy + Math.sin(angle) * radial * 0.72;
+        dot(x, y, 2.2 + (1 - amount) * 2.8, i % 3 ? c.accent : c.warm, 0.25 + (1 - radial / (spread + 1)) * 0.7);
+      }
+      ctx.strokeStyle = c.border;
+      ctx.beginPath();
+      ctx.arc(cx, cy, spread, 0, Math.PI * 2);
+      ctx.stroke();
+      label(amount < 0.35 ? "sharp patch" : "heat shares the patch outward", cx, height - 20, c.muted, "center");
+    };
+
+    const drawShells = (width: number, height: number, amount: number, c: ReturnType<typeof colors>) => {
+      const cx = width / 2;
+      const cy = height / 2;
+      const active = 24 + amount * Math.min(width, height) * 0.38;
+      for (let i = 1; i <= 6; i += 1) {
+        const radius = i * Math.min(width, height) * 0.07;
+        ctx.strokeStyle = Math.abs(radius - active) < 18 ? c.warm : c.border;
+        ctx.lineWidth = Math.abs(radius - active) < 18 ? 3 : 1;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      for (let i = 0; i < 18; i += 1) {
+        const angle = i * 2.17;
+        const radius = 28 + (i % 6) * 25;
+        arrow(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius, angle - Math.PI / 2, 17 + (i % 4) * 5, c.accent, 1.5, 0.7);
+      }
+      line(cx, cy, cx + active, cy, c.warm, 2);
+      dot(cx + active, cy, 5, c.warm);
+      label("X", cx + active / 2, cy - 10, c.warm, "center", 14);
+      label("same radius · different directions", cx, height - 20, c.muted, "center");
+    };
+
+    const drawFactor = (width: number, height: number, amount: number, c: ReturnType<typeof colors>) => {
+      const left = 42;
+      const bottom = height * 0.75;
+      const center = width * 0.5;
+      line(left, bottom, width - 24, bottom, c.border);
+      line(center, 30, center, height - 30, c.border);
+      const curvature = 35 + amount * 150;
+      ctx.strokeStyle = c.accent;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let i = 0; i <= 100; i += 1) {
+        const x = left + (i / 100) * (width - left - 24);
+        const normalized = (x - center) / (width * 0.43);
+        const y = bottom - normalized * normalized * curvature;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      dot(center, bottom, 6, c.warm);
+      line(center - 55, bottom, center + 55, bottom, c.warm, 3);
+      label("same value", center + 12, bottom + 26, c.warm);
+      label("same slope", center + 12, bottom + 42, c.warm);
+      label("gap grows like X²", width - 28, 30, c.accent, "right");
+    };
+
+    const drawSlices = (width: number, height: number, amount: number, c: ReturnType<typeof colors>) => {
+      const cx = width / 2;
+      const cy = height / 2;
+      const selected = Math.round(amount * 4);
+      for (let i = 0; i < 5; i += 1) {
+        const angle = -Math.PI / 2 + i * (Math.PI * 2 / 5);
+        const x = cx + Math.cos(angle) * 95;
+        const y = cy + Math.sin(angle) * 95;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle + Math.PI / 2);
+        ctx.fillStyle = i === selected ? c.active || c.warm : c.surface;
+        ctx.strokeStyle = i === selected ? c.warm : c.border;
+        ctx.lineWidth = i === selected ? 3 : 1;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 42, 23, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+        label(`u^${i}`, x, y + 4, i === selected ? c.canvas : c.muted, "center");
+      }
+      dot(cx, cy, 9, c.text);
+      label(`slice ${selected}`, cx, cy + 36, c.text, "center", 13);
+    };
+
+    const drawAssembly = (width: number, height: number, amount: number, c: ReturnType<typeof colors>) => {
+      const proved = Math.round(amount * 5);
+      const gap = 14;
+      const tileWidth = Math.min(90, (width - 70 - gap * 4) / 5);
+      const start = (width - (tileWidth * 5 + gap * 4)) / 2;
+      for (let i = 0; i < 5; i += 1) {
+        const x = start + i * (tileWidth + gap);
+        const closed = i < proved;
+        ctx.fillStyle = closed ? c.surface : c.canvas;
+        ctx.strokeStyle = closed ? c.proof || c.accent : c.warm;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(x, height * 0.34, tileWidth, 88, 4);
+        ctx.fill();
+        ctx.stroke();
+        label(`T${i}`, x + tileWidth / 2, height * 0.34 + 37, closed ? c.accent : c.warm, "center", 15);
+        label(closed ? "= 0" : "open", x + tileWidth / 2, height * 0.34 + 63, closed ? c.accent : c.muted, "center");
+      }
+      const allClosed = proved === 5;
+      label(allClosed ? "tail erased → D = 0" : `${proved} of 5 leaf theorems available`, width / 2, height * 0.75, allClosed ? c.accent : c.muted, "center", 13);
+    };
+
+    const draw = () => {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      const pixelWidth = Math.max(1, Math.round(rect.width * dpr));
+      const pixelHeight = Math.max(1, Math.round(rect.height * dpr));
+      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const width = rect.width;
+      const height = rect.height;
+      const c = colors();
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = c.canvas;
+      ctx.fillRect(0, 0, width, height);
+      const scene = topic.scenes[activeScene];
+      const amount = scene.control.max === scene.control.min
+        ? 0
+        : (value - scene.control.min) / (scene.control.max - scene.control.min);
+
+      switch (scene.mode) {
+        case "flow": drawFlow(width, height, amount, c); break;
+        case "spin": drawSpin(width, height, amount, c); break;
+        case "arrows": drawArrows(width, height, amount, c); break;
+        case "spike": drawSpike(width, height, amount, c); break;
+        case "tube": drawTube(width, height, amount, c); break;
+        case "amplify": drawAmplify(width, height, amount, c); break;
+        case "smooth": drawSmooth(width, height, amount, c); break;
+        case "balance": drawBalance(width, height, amount, c); break;
+        case "lens": drawLens(width, height, amount, c); break;
+        case "center": drawCenter(width, height, amount, c); break;
+        case "scale": drawScale(width, height, amount, c); break;
+        case "heat": drawHeat(width, height, amount, c); break;
+        case "shells": drawShells(width, height, amount, c); break;
+        case "factor": drawFactor(width, height, amount, c); break;
+        case "slices": drawSlices(width, height, amount, c); break;
+        case "assembly": drawAssembly(width, height, amount, c); break;
+      }
+    };
+
+    const formatControl = (scene: Scene, rawValue: number) => {
+      if (scene.mode === "slices") return `${Math.round(rawValue)}`;
+      if (scene.mode === "assembly") return `${Math.round(rawValue)}${scene.control.unit}`;
+      return `${Math.round(rawValue)}${scene.control.unit}`;
+    };
+
+    const setScene = (index: number) => {
+      activeScene = clamp(index, 0, topic.scenes.length - 1);
+      const scene = topic.scenes[activeScene];
+      value = scene.control.value;
+      sceneButtons.forEach((button, buttonIndex) => {
+        const active = buttonIndex === activeScene;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-selected", String(active));
+      });
+      visualLabel.textContent = scene.visualLabel;
+      canvas.setAttribute("aria-label", scene.visualLabel);
+      count.textContent = `${String(activeScene + 1).padStart(2, "0")} / ${String(topic.scenes.length).padStart(2, "0")}`;
+      title.textContent = scene.headline;
+      story.textContent = scene.story;
+      equation.textContent = scene.equation;
+      equationNote.textContent = scene.equationNote;
+      controlName.textContent = scene.control.label;
+      controlValue.textContent = formatControl(scene, value);
+      range.min = String(scene.control.min);
+      range.max = String(scene.control.max);
+      range.step = scene.mode === "slices" || scene.mode === "assembly" ? "1" : "1";
+      range.value = String(value);
+      range.setAttribute("aria-label", scene.control.label);
+      watch.textContent = scene.watch;
+      proof.textContent = scene.proof;
+      proofStatus.textContent = scene.proofStatus;
+      proofStatus.dataset.status = scene.proofStatus;
+      previous.disabled = activeScene === 0;
+      next.textContent = activeScene === topic.scenes.length - 1
+        ? "Restart physical story"
+        : `Next: ${topic.scenes[activeScene + 1].tab}`;
+      draw();
+    };
+
+    sceneButtons.forEach((button, index) =>
+      button.addEventListener("click", () => setScene(index)),
+    );
+    previous.addEventListener("click", () => setScene(activeScene - 1));
+    next.addEventListener("click", () =>
+      setScene(activeScene === topic.scenes.length - 1 ? 0 : activeScene + 1),
+    );
+    range.addEventListener("input", () => {
+      value = Number(range.value);
+      controlValue.textContent = formatControl(topic.scenes[activeScene], value);
+      draw();
+    });
+    motion.addEventListener("click", () => {
+      running = !running;
+      motion.textContent = running ? "Pause motion" : "Resume motion";
+      motion.setAttribute("aria-pressed", String(!running));
+      if (running) previousTime = performance.now();
+    });
+
+    const updatePointer = (event: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      pointerX = clamp((event.clientX - rect.left) / rect.width, 0.08, 0.92);
+      pointerY = clamp((event.clientY - rect.top) / rect.height, 0.1, 0.9);
+      draw();
+    };
+    canvas.addEventListener("pointerdown", (event) => {
+      if (topic.id !== "gaussian-lens") return;
+      dragging = true;
+      canvas.setPointerCapture(event.pointerId);
+      updatePointer(event);
+    });
+    canvas.addEventListener("pointermove", (event) => {
+      if (dragging) updatePointer(event);
+    });
+    canvas.addEventListener("pointerup", (event) => {
+      dragging = false;
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+    });
+
+    const animate = (now: number) => {
+      const delta = Math.min((now - previousTime) / 1000, 0.05);
+      previousTime = now;
+      if (running) {
+        elapsed += delta;
+        draw();
+      }
+      requestAnimationFrame(animate);
+    };
+
+    new ResizeObserver(draw).observe(canvas);
+    setScene(0);
+    requestAnimationFrame(animate);
+  });
+</script>
+
+<style>
+  .physics-lab {
+    --physics-warm: #ac6547;
+    --physics-blue: #547894;
+    --physics-proof: #2f725f;
+    border-block: 1px solid var(--border-strong);
+  }
+
+  :global([data-theme="dark"]) .physics-lab {
+    --physics-warm: #dc9473;
+    --physics-blue: #8caeca;
+    --physics-proof: #7fb8a8;
+  }
+
+  .topic-rail {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .topic-rail a {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    padding: 0.85rem 1rem;
+    border-right: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.64rem;
+    text-decoration: none;
+  }
+
+  .topic-rail a:last-child {
+    border-right: 0;
+  }
+
+  .topic-rail a[aria-current="page"] {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  .topic-rail span {
+    color: var(--faint);
+    font-size: 0.56rem;
+  }
+
+  .scene-rail {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  .scene-rail button {
+    display: flex;
+    gap: 0.7rem;
+    align-items: center;
+    padding: 1rem;
+    border: 0;
+    border-right: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.72rem;
+    text-align: left;
+  }
+
+  .scene-rail button:last-child {
+    border-right: 0;
+  }
+
+  .scene-rail button.is-active {
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .scene-rail span {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.58rem;
+  }
+
+  .physics-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(18rem, 0.75fr);
+    min-height: 38rem;
+  }
+
+  .physics-canvas-wrap {
+    display: grid;
+    grid-template-rows: auto minmax(28rem, 1fr) auto;
+    min-width: 0;
+    border-right: 1px solid var(--border-strong);
+  }
+
+  .canvas-head {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.8rem 1rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .physics-motion {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 0.58rem;
+  }
+
+  .physics-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 28rem;
+    cursor: crosshair;
+    touch-action: none;
+  }
+
+  .canvas-scale {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.65rem 1rem;
+    border-top: 1px solid var(--border);
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.52rem;
+    text-transform: uppercase;
+  }
+
+  .canvas-scale i {
+    height: 1px;
+    background: linear-gradient(90deg, var(--physics-warm), var(--accent));
+  }
+
+  .physics-copy {
+    display: flex;
+    flex-direction: column;
+    padding: clamp(1.5rem, 3vw, 2.5rem);
+  }
+
+  .scene-count {
+    margin: 0;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+  }
+
+  .physics-copy h2 {
+    margin: 0.8rem 0 0;
+    font-family: var(--serif);
+    font-size: clamp(1.9rem, 3vw, 3rem);
+    font-weight: 400;
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+
+  .scene-story {
+    margin: 1.2rem 0 0;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: 1.03rem;
+    line-height: 1.55;
+  }
+
+  .physics-equation {
+    margin-top: 1.4rem;
+    padding-block: 1rem;
+    border-block: 1px solid var(--border);
+  }
+
+  .physics-equation span {
+    display: block;
+    overflow-x: auto;
+    color: var(--text);
+    font-family: var(--serif);
+    font-size: clamp(1.15rem, 2vw, 1.55rem);
+    white-space: nowrap;
+  }
+
+  .physics-equation small {
+    display: block;
+    margin-top: 0.45rem;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.58rem;
+  }
+
+  .physics-control {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 1.2rem;
+  }
+
+  .physics-control > span {
+    display: flex;
+    justify-content: space-between;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+  }
+
+  .physics-control output {
+    color: var(--accent);
+  }
+
+  .physics-range {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+
+  .watch-note {
+    display: grid;
+    grid-template-columns: 3.5rem minmax(0, 1fr);
+    gap: 0.8rem;
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .watch-note > span {
+    color: var(--physics-warm);
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    text-transform: uppercase;
+  }
+
+  .watch-note p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.76rem;
+    line-height: 1.5;
+  }
+
+  .scene-actions {
+    display: flex;
+    gap: 0.7rem;
+    justify-content: space-between;
+    margin-top: auto;
+    padding-top: 1.5rem;
+  }
+
+  .scene-actions button {
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 0.2rem;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.7rem;
+  }
+
+  .scene-actions button:disabled {
+    opacity: 0.38;
+    cursor: default;
+  }
+
+  .physics-next {
+    border-color: var(--accent) !important;
+    background: var(--accent-soft) !important;
+    color: var(--accent);
+  }
+
+  .proof-boundary {
+    display: grid;
+    grid-template-columns: 1fr auto 1.35fr auto 1fr;
+    gap: 1rem;
+    align-items: center;
+    padding: clamp(1.5rem, 4vw, 2.5rem);
+    border-top: 1px solid var(--border-strong);
+    background: var(--surface);
+  }
+
+  .proof-boundary > div:not(.boundary-arrow) {
+    min-height: 5.5rem;
+  }
+
+  .proof-label {
+    margin: 0 0 0.65rem;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 0.56rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .proof-boundary strong {
+    display: block;
+    font-family: var(--serif);
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1.45;
+  }
+
+  .boundary-arrow {
+    color: var(--faint);
+    font-family: var(--mono);
+  }
+
+  .proof-status {
+    --status: var(--faint);
+    display: inline-flex;
+    gap: 0.4rem;
+    align-items: center;
+    margin-top: 0.75rem;
+    color: var(--status);
+    font-family: var(--mono);
+    font-size: 0.56rem;
+    font-weight: 650;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .proof-status::before {
+    width: 0.42rem;
+    height: 0.42rem;
+    border-radius: 50%;
+    background: currentColor;
+    content: "";
+  }
+
+  .proof-status[data-status="proved"] { --status: var(--physics-proof); }
+  .proof-status[data-status="active"] { --status: var(--physics-warm); }
+  .proof-status[data-status="open"] { --status: #a9554f; }
+
+  @media (max-width: 880px) {
+    .topic-rail,
+    .scene-rail {
+      overflow-x: auto;
+      grid-template-columns: repeat(4, minmax(9rem, 1fr));
+    }
+
+    .physics-stage {
+      grid-template-columns: 1fr;
+    }
+
+    .physics-canvas-wrap {
+      border-right: 0;
+      border-bottom: 1px solid var(--border-strong);
+    }
+
+    .physics-copy {
+      min-height: 34rem;
+    }
+
+    .proof-boundary {
+      grid-template-columns: 1fr;
+    }
+
+    .boundary-arrow {
+      transform: rotate(90deg);
+      text-align: center;
+    }
+  }
+
+  @media (max-width: 580px) {
+    .physics-canvas-wrap {
+      grid-template-rows: auto minmax(22rem, 1fr) auto;
+    }
+
+    .physics-canvas {
+      min-height: 22rem;
+    }
+
+    .physics-copy {
+      min-height: 37rem;
+    }
+  }
+</style>
