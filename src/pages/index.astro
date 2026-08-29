@@ -24,19 +24,6 @@ const recent = posts.slice(0, 3);
     </div>
   </section>
 
-  <section class="thesis page-shell" aria-labelledby="thesis-title">
-    <p class="eyebrow">A through-line</p>
-    <div>
-      <h2 id="thesis-title">Who acted? What could they do? How would we know?</h2>
-      <p>
-        Identity, authority, software behavior, and proof look like separate
-        problems until a system has to answer for itself. My interests live at
-        those seams—and my writing follows the human questions underneath:
-        trust, judgment, institutions, language, and reciprocity.
-      </p>
-    </div>
-  </section>
-
   <section class="writing page-shell" aria-labelledby="writing-title">
     <div class="writing-heading">
       <div>
@@ -52,32 +39,12 @@ const recent = posts.slice(0, 3);
 </BaseLayout>
 
 <style>
-  .thesis,
   .about {
     display: grid;
     grid-template-columns: minmax(8rem, 0.34fr) 1fr;
     gap: 2rem;
     padding-block: clamp(5rem, 12vw, 10rem);
     border-top: 1px solid var(--border);
-  }
-
-  .thesis h2 {
-    max-width: 58rem;
-    margin: 0;
-    font-family: var(--serif);
-    font-size: clamp(2.6rem, 6.5vw, 5.8rem);
-    font-weight: 400;
-    letter-spacing: -0.05em;
-    line-height: 0.98;
-  }
-
-  .thesis div > p {
-    max-width: 39rem;
-    margin: 2rem 0 0;
-    color: var(--muted);
-    font-family: var(--serif);
-    font-size: 1.18rem;
-    line-height: 1.62;
   }
 
   .section-heading {
@@ -109,7 +76,6 @@ const recent = posts.slice(0, 3);
   }
 
   @media (max-width: 700px) {
-    .thesis,
     .about {
       grid-template-columns: 1fr;
     }
