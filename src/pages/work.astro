@@ -2,26 +2,28 @@
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import ProjectCard from "@/components/ProjectCard.astro";
 import { projects } from "@/data/projects";
+
+const publishedProjects = projects.filter((project) => project.published !== false);
 ---
 
 <BaseLayout
   title="Selected work — bordumb"
-  description="Selected work on identity, bounded authority, behavioral safety, executable evidence, and formal proof."
+  description="Selected work on identity, bounded authority, behavioral safety, and executable evidence."
 >
   <section class="work page-shell" aria-labelledby="work-title">
     <header class="section-top">
       <div>
         <p class="eyebrow">Selected work</p>
-        <h1 class="section-heading" id="work-title">Five questions,<br />made executable.</h1>
+        <h1 class="section-heading" id="work-title">Four questions,<br />made executable.</h1>
       </div>
       <p class="section-intro">
         Each project makes a boundary visible: between identity and personhood,
-        permission and action, confidence and evidence, an open problem and a
-        solved one.
+        permission and action, ambient behavior and explicit capability, and
+        confidence and evidence.
       </p>
     </header>
     <div class="projects">
-      {projects.map((project, index) => <ProjectCard project={project} index={index} />)}
+      {publishedProjects.map((project, index) => <ProjectCard project={project} index={index} />)}
     </div>
   </section>
 </BaseLayout>

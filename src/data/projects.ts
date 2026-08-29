@@ -8,6 +8,7 @@ export type Project = {
   repository: string;
   documentation?: string;
   accent: string;
+  published?: boolean;
 };
 
 export const projects: Project[] = [
@@ -77,5 +78,6 @@ export const projects: Project[] = [
     technologies: ["Lean 4", "Mathlib", "PDE", "recurve"],
     repository: "https://github.com/bordumb/navier_stokes",
     accent: "formal",
+    published: false,
   },
 ];
