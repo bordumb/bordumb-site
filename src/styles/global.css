@@ -205,6 +205,29 @@ button {
   text-wrap: pretty;
 }
 
+.prose img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+
+.prose .article-image {
+  margin: 2em 0 0;
+}
+
+.prose .article-image figcaption {
+  margin-top: 0.65rem;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.prose .article-image + h2 {
+  margin-top: 2em;
+}
+
 .prose a:not(.code-tab):not(.copy-button) {
   text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
   text-decoration-thickness: 0.08em;
