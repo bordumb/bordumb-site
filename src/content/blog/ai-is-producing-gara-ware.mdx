@@ -1,0 +1,236 @@
+---
+title: "AI is producing gara-ware"
+description: "Japanese feature phones evolved into many local variants. AI is creating the same conditions for software, unless applications give way to malleable tools."
+publishedAt: 2026-08-29T12:00:00+01:00
+tags: [ai, software, japanese, tools]
+draft: false
+featured: false
+---
+
+import Callout from "@/components/content/Callout.astro";
+import Mermaid from "@/components/content/Mermaid.astro";
+
+Before the iPhone, a Japanese phone shop could look like a display of closely
+related species. Most handsets had a small screen, a hinge or slider, a numeric
+keypad, and a dense arrangement of buttons. Look more closely and the
+differences accumulated. One model opened sideways to show television. Another
+put a camera above the outer display. Carrier menus, payment systems, mail,
+emoji, games, and web services varied between devices that shared the same
+basic silhouette.
+
+These phones are now commonly grouped under one name: `ガラケー` (*garakē*).
+The word contains a history of technology developing inside a local
+environment—and a possible name for what AI is doing to software now.
+
+## ガラケー joins Galápagos to mobile phone
+
+The full Japanese word for mobile phone is `携帯電話` (*keitai denwa*),
+literally a portable telephone. In ordinary speech it was shortened to `携帯`
+(*keitai*), often written phonetically as `ケータイ`.
+
+`ガラケー` abbreviates `ガラパゴス携帯`: Galápagos mobile phone.
+
+| Japanese | Rōmaji | English |
+|---|---|---|
+| `ガラパゴス` | *garapagosu* | Galápagos |
+| `携帯電話` | *keitai denwa* | mobile phone |
+| `携帯` / `ケータイ` | *keitai* | mobile phone (short form) |
+| `ガラパゴス携帯` | *garapagosu keitai* | Galápagos mobile phone |
+| `ガラケー` | *garakē* | Japanese feature phone |
+
+<Mermaid
+  title="How ガラケー is formed"
+  description="ガラパゴス携帯 is shortened by taking ガラ from ガラパゴス and ケー from ケータイ, producing ガラケー."
+  source={`flowchart LR
+    A["ガラパゴス携帯<br/>garapagosu keitai"] --> B["ガラ<br/>from ガラパゴス"]
+    A --> C["ケー<br/>from ケータイ（携帯）"]
+    B --> D["ガラケー<br/>garakē"]
+    C --> D`}/>
+
+The Galápagos reference does not mean that the phones were primitive. Japanese
+handsets acquired capabilities early. NTT DoCoMo launched i-mode in 1999, and
+later phones combined mobile web access with cameras, GPS, water resistance,
+and [Osaifu-Keitai electronic payments](https://www.nttdocomo.co.jp/english/corporate/ir/binary/pdf/library/annual/fy2011/p03_e.pdf).
+The problem was that this sophistication evolved around Japanese carriers,
+standards, manufacturers, and consumer habits. Features fitted the local
+ecosystem closely but did not travel cleanly into the rest of the world.
+
+That condition became `ガラパゴス化` (*garapagosu-ka*): Galápagosization.
+A globally familiar product had followed a branch shaped by isolation.
+`ガラケー` named the handset produced by that branch. After smartphones
+became dominant, the word also became a convenient contrast term for older
+feature phones, even when their particular features were not uniquely
+Japanese.
+
+The biological metaphor is variation under local pressure. The Galápagos
+finches are closely related, but their beaks and body sizes vary with food and
+habitat. A [small set of visible changes separates forms adapted to different
+niches](https://www.nhm.ac.uk/schools/teaching-resources/galapagos-finches-show-beak-differences.html).
+Japanese phones produced a comparable visual experience: a row of related
+devices, each adjusted to a slightly different combination of carrier,
+manufacturer, and use.
+
+## AI lowers the minimum viable habitat
+
+Conventional software needs enough users or revenue to pay for its creation
+and maintenance. That economic threshold suppresses many variants. A developer
+may dislike one part of an application, but rebuilding the application costs
+more than tolerating the mismatch.
+
+AI coding tools lower that threshold. A person can describe the missing
+behavior, generate a working version, and revise it without first assembling a
+team or raising enough money to support one. The relevant market can shrink
+from thousands of customers to a department, a group chat, a family, or one
+person with an inconvenient workflow.
+
+As the viable habitat gets smaller, more software can survive:
+
+- another Markdown editor with one different publishing path;
+- another issue tracker fitted to one team's vocabulary;
+- another personal finance tool with the exact categories its author uses;
+- another Git interface built around a particular interpretation of branches;
+- another internal dashboard that differs from three nearby dashboards by one
+  filter and one approval step.
+
+Many of these programs will look almost identical. Some will duplicate work
+that an existing setting or contribution could have handled. Others will
+contain a small difference that matters intensely to their few users. From a
+distance, both cases look like redundancy.
+
+AI makes implementation cheaper faster than it makes coordination cheaper.
+Finding an existing project, understanding its design, negotiating a change,
+and waiting for maintainers still require attention. Starting a new repository
+now offers an immediate path around those costs. The result is not only more
+software, but more independent branches of the same idea.
+
+## Two Git servers met on X
+
+On 24 August 2026, Shopify CEO Tobi Lütke published
+[`walgit`](https://github.com/tobi/walgit), an open-source Git server he had
+built over a weekend after reading Cursor's account of its large-scale Git
+architecture. The implementation uses an object store as the durable source of
+truth, records pushes in a write-ahead log, and treats local repositories as
+disposable caches.
+
+GitButler CEO Scott Chacon then
+[replied on X](https://x.com/chacon/status/2091766520368029731):
+
+<blockquote class="twitter-tweet"><p lang="en" dir="ltr">It’s hilarious, I did this too: <a href="https://t.co/jqmEY2P8c3">https://t.co/jqmEY2P8c3</a><br /><br />Mostly to see how it worked, but its turned into a fun, working project. <a href="https://t.co/PTUTsTkrLH">https://t.co/PTUTsTkrLH</a></p>&mdash; Scott Chacon (@chacon) <a href="https://x.com/chacon/status/2091766520368029731?ref_src=twsrc%5Etfw">August 24, 2026</a></blockquote>
+
+<script async src="https://platform.x.com/widgets.js" charset="utf-8"></script>
+
+His project, [`gitwal`](https://gitwal.io), also puts a Git host in front of an
+object store, uses a write-ahead log as the source of truth, and treats local
+disk as a cache that can disappear. Both projects cite the same Cursor article
+as inspiration. Their names even invert the same two words: `walgit` and
+`gitwal`.
+
+They are not identical products. Their authentication, interfaces, deployment
+choices, and ambitions can diverge. Nor does the exchange establish how much
+of either codebase was generated by AI. It shows the development tempo that AI
+now amplifies: two experienced builders can encounter the same technical idea,
+implement substantial versions independently, and discover the duplication
+only after both are public.
+
+Previously, the cost of building a Git server would have pushed more people to
+coordinate before implementing. Now implementation itself can be a way to
+understand an idea. The prototype is no longer merely a plan for the work; it
+is what a person can produce while deciding whether the idea is worth pursuing.
+
+## Gara-ware is software adapted to one island
+
+I want a term for the output of this new condition: **gara-ware**, or Galápagos
+software.
+
+<Callout label="Working definition">
+  Gara-ware is software whose low cost of creation allows it to evolve for a
+  narrow local context even when closely related software already exists
+  elsewhere.
+</Callout>
+
+The term is not automatically an insult. The original Japanese phones show why.
+Local adaptation produced real capabilities for Japanese users. Isolation
+became a liability when the surrounding market converged on another platform,
+but divergence and inferiority were never synonyms.
+
+Gara-ware can likewise fit its users better than a mass-market application.
+A tool built for one laboratory can encode its actual instruments. A family
+calendar can use the family's own rules without turning those rules into a
+settings screen for millions of strangers. A programmer can test an
+architecture by constructing it rather than arguing about it in the abstract.
+Several independent implementations can also expose which parts of an idea are
+essential and which were accidents of the first version.
+
+The cost appears later. Each variant acquires dependencies, security failures,
+data formats, accessibility gaps, and maintenance work. Ten similar tools do
+not share fixes merely because the same model helped create them. If their data
+cannot move between them, a user's local improvement becomes another island
+they cannot leave. Cheap creation can therefore produce expensive continuity.
+
+The distinction is whether variation accumulates above a shared substrate or
+inside sealed applications. Variants that share protocols, data, and reusable
+parts can exchange improvements. Variants that each own the entire stack repeat
+the same infrastructure and trap their differences behind incompatible
+boundaries.
+
+## The iPhone moved variation from buttons into software
+
+When Steve Jobs introduced the iPhone in 2007, he contrasted its large
+multi-touch screen with smartphones covered in fixed controls. A plastic
+button is committed at the factory. If an application needs a different
+control, the hardware cannot become something else.
+
+The iPhone replaced most of that fixed surface with pixels. Its keyboard could
+appear when text entry was required and disappear afterward. Each application
+could present controls fitted to the current task. Apple's
+[launch announcement](https://www.apple.com/newsroom/2007/01/09Apple-Reinvents-the-Phone/)
+described the mechanism directly: software and a multi-touch display replaced
+the small plastic keyboards used by contemporary smartphones.
+
+That change did not eliminate variation. It consolidated variation onto a
+malleable surface. Instead of manufacturing another handset for each button
+layout, developers could redraw the same screen.
+
+Software may be approaching an equivalent choice. We can use AI to manufacture
+another complete application whenever a local need appears. That path produces
+gara-ware indefinitely: many recognizable products with slightly different
+controls, data models, and assumptions.
+
+Or we can make the underlying software more changeable.
+
+Ink & Switch calls this
+[malleable software](https://www.inkandswitch.com/essay/malleable-software/):
+an ecosystem in which people can adapt their tools with little friction. Its
+proposal does not require everybody to recreate every application. It calls
+for a gradual path from use to modification, tools that operate on shared data,
+interfaces that can be composed, and communities that can exchange local
+changes.
+
+That model turns an isolated fork into a possible customization. The person
+who needs one extra field should be able to add a field, not commission another
+project-management system. The person who wants a different view should be able
+to place another tool over the same data, not migrate the data into a new
+application. AI can help create the change, while the substrate keeps identity,
+history, permissions, and interoperability intact.
+
+## Proliferation and consolidation can happen together
+
+We may continue building similar but different things forever. The falling
+cost of implementation makes that likely, and many local variants will deserve
+to exist. The mistake would be to conclude that every variation requires an
+independent application.
+
+Consolidation does not have to mean one vendor selecting one interface for
+everyone. It can mean agreement at lower layers: common document formats,
+stable protocols, shared identity, portable history, and components that can
+be replaced without abandoning the surrounding system. Above those layers,
+variation can accelerate.
+
+The future may therefore contain both more software and fewer fixed
+applications. AI supplies an abundance of implementations. Malleable systems
+could give those implementations somewhere to meet, exchange parts, and remain
+legible to one another.
+
+The alternative is an archipelago of programs: each easy to create, each
+adapted to its builder, and each separated by a short stretch of water that no
+one remembered to bridge.
