@@ -13,6 +13,19 @@ export type Project = {
 
 export const projects: Project[] = [
   {
+    name: "Proofbound",
+    question: "What does the evidence establish?",
+    summary:
+      "An assurance compiler for Proof-Driven Development that keeps tests, bounded checks, theorems, assumptions, and production linkage distinct.",
+    mechanism:
+      "Strict manifests bind claims to exact subjects and typed evidence; the compiler derives formal standing, production linkage, and assumption burden, then emits independently verifiable receipts.",
+    boundary:
+      "A proof can be correct while the released program is wrong. Proofbound connects the two only after checking that the source matches the proved behavior, or that the proof names the exact bytes being shipped.",
+    technologies: ["Rust", "Lean 4", "Kani", "Charon / Aeneas"],
+    repository: "https://github.com/bordumb/proof-bound",
+    accent: "assurance",
+  },
+  {
     name: "Auths",
     question: "Who acted?",
     summary:
