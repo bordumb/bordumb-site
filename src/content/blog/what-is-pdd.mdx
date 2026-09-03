@@ -1,0 +1,623 @@
+---
+title: "What is PDD?"
+description: "Proof-Driven Development makes claims the unit of software work, then promotes them from an honest CLI ledger to bounded checks, Lean theorems, and shipping-code or artifact bindings."
+publishedAt: 2026-09-03
+tags: [proof-driven-development, formal-methods, software-assurance, testing]
+draft: false
+featured: false
+---
+
+import Mermaid from "@/components/content/Mermaid.astro";
+
+Proof-Driven Development begins with a sentence:
+
+> Every accepted transfer preserves total account value.
+
+The sentence is not a test name, function name, ticket, theorem, or CI job. It
+is a claim about software behaviour. Development determines which program will
+make the claim true. Evidence determines what the project is currently
+entitled to say about it.
+
+Proof-Driven Development, or PDD, is the practice of making that claim the
+stable unit of work. The implementation can change. Tests can be added or
+removed. A finite model check can give way to a theorem. A handwritten model
+can later be connected to production source. The claim keeps its identity while
+its evidence becomes stronger, weaker, stale, or invalid.
+
+The development loop still contains ordinary engineering:
+
+<Mermaid
+  title="Development sits inside the assurance loop"
+  description="The developer states a claim, then designs, implements, and refactors code. Tests, bounded checks, and proofs produce typed evidence. Proofbound compiles that evidence with explicit assumptions and exclusions. A named gap returns to development; an admitted status proceeds to review and publication."
+  source={`flowchart LR
+    C["State the claim<br/>and bind its subject"] --> D["Design, implement,<br/>and refactor code"]
+    D --> E["Run tests, bounded checks,<br/>and proofs"]
+    E --> P["Proofbound compiles<br/>the claim closure"]
+    A["Register assumptions<br/>and exclusions"] --> P
+    P --> V{"Required status<br/>reached?"}
+    V -->|"no: named gap"| D
+    V -->|"yes"| R["Review and publish<br/>status + receipt"]`}/>
+
+PDD does not require every line to be formally verified. It requires the
+project to stop saying more than its evidence establishes. An ordinary test is
+a valid starting point. A theorem about a model is a stronger formal result,
+but it remains a model theorem until another checked relation reaches the code
+or bytes that ship.
+
+That distinction is the subject of
+[What does a green build prove?](/blog/what-does-a-green-build-prove). This post
+follows the development loop itself: where the idea came from, how each step
+works, and how [Proofbound](https://github.com/bordumb/proof-bound) supports a
+project from its first CLI-only claim ledger through source refinement and
+artifact binding.
+
+## PDD combines several older ideas
+
+PDD is not a new proof calculus. It is a development discipline built from
+ideas that formal methods, testing, programming languages, and software-supply-
+chain research have developed separately.
+
+Hoare's 1969
+[An axiomatic basis for computer programming](https://doi.org/10.1145/363235.363259)
+made program correctness a relation between a precondition, a command, and a
+postcondition:
+
+$$
+\{P\}\ C\ \{Q\}.
+$$
+
+The useful shift was from “the program ran successfully” to “this command
+preserves this proposition under these conditions.” PDD keeps the proposition
+first-class even when the available evidence is only empirical.
+
+Bertrand Meyer's 1992
+[Applying “Design by Contract”](https://doi.org/10.1109/2.161279) brought
+preconditions, postconditions, and invariants into everyday interface design.
+A caller and implementation could share an executable account of their
+obligations. PDD widens the contract from one routine boundary to the evidence
+closure around a product claim.
+
+Clarke, Emerson, and Sistla's work on
+[automatic verification of finite-state systems](https://doi.org/10.1145/5397.5399)
+showed how a machine could exhaust a finite transition graph rather than sample
+individual executions. That result supplies one of PDD's most important
+distinctions: exhaustive over a registered finite domain is not the same claim
+as universal over an unbounded domain.
+
+Proof engineering then showed that serious implementations could remain
+connected to abstract specifications. The 2009
+[seL4 functional-correctness verification](https://sel4.org/Research/pdfs/sel4-formal-verification-os-kernel.pdf)
+related an operating-system kernel's C implementation to higher-level models
+while naming assumptions about its compiler, assembly, and hardware. The 2018
+paper on
+[continuous formal verification of Amazon s2n](https://link.springer.com/chapter/10.1007/978-3-319-96142-2_26)
+made maintenance part of the result: proofs ran in continuous integration while
+developers continued changing the TLS implementation.
+
+The consumer boundary developed along another line. Necula's 1997
+[Proof-Carrying Code](https://doi.org/10.1145/263699.263712) required the code
+producer to supply evidence that a smaller consumer-side checker could
+validate. Pnueli, Siegel, and Singerman's
+[translation validation](https://doi.org/10.1007/BFB0054170) checked a
+particular translation result rather than relying only on a once-proved
+translator. [in-toto](https://www.usenix.org/conference/usenixsecurity19/presentation/torres-arias)
+later made the actors, materials, and steps of a software supply chain
+verifiable by a recipient.
+
+These systems answer different questions. Hoare logic gives meaning to a
+program relation. Design by Contract places conditions at interfaces. Model
+checking exhausts a finite model. Refinement connects abstraction levels.
+Proof-carrying code moves checking toward the consumer. Translation validation
+checks a specific transformation. Supply-chain attestations bind actors and
+materials to build steps.
+
+PDD combines the maintenance lesson: a project needs to know which proposition
+each result supports, which subject it reaches, which assumptions remain, and
+what change would invalidate the connection. Proofbound is the reference
+implementation of PDD: an assurance compiler that records and checks those
+relationships.
+
+## Proofbound makes adoption progressive
+
+Formal verification remains specialist work. Requiring a theorem prover before
+a project can state one honest claim would make PDD an all-or-nothing programme.
+Proofbound therefore has four adoption tiers.
+
+The first usable tier is numbered **Tier 0** because it adds no formal
+toolchain. It is not a zero-value state; it is the point where claims,
+assumptions, existing tests, and open obligations first become explicit.
+
+| Tier | What the project adds | Additional tooling | Strongest new standing |
+| --- | --- | --- | --- |
+| **0 — Ledger** | Registered claims, explicit assumptions, existing tests, and open obligations | Proofbound CLI only | `TESTED`, `ASSUMED`, or `OPEN` |
+| **1 — Bounded or transcribed** | Finite-domain checks, independent exhaustive checks, or an external typed transcription | Kani or another registered checker/transcription driver | `BOUNDED_CHECKED` or `TRANSCRIBED` linkage |
+| **2 — Model** | Attributed theorems and a compiled axiom audit | Lean | `PROVED · MODEL_ONLY` |
+| **3 — Bound** | Source refinement or a theorem-derived binding to exact artifact bytes | Charon/Aeneas and/or digest-binding theorems | `PROVED · REFINED` or `PROVED · ARTIFACT_BOUND` |
+
+The tier is a project capability, not a compulsory status for every claim. A
+Tier 3 project may still have Tier 0 claims. A claim moves upward only when the
+extra evidence is worth its engineering and trust cost. Its identifier and
+statement do not need to be replaced during promotion.
+
+<Mermaid
+  title="A claim is promoted without changing its identity"
+  description="The same registered claim begins as an explicit ledger entry, gains bounded evidence, gains a model theorem, and finally gains a checked link to production source or exact artifact bytes. Weaker evidence remains in the closure rather than being erased."
+  source={`flowchart LR
+    T0["Tier 0<br/>claim + tests + assumptions"] --> T1["Tier 1<br/>bounded or transcribed"]
+    T1 --> T2["Tier 2<br/>Lean theorem + axiom audit"]
+    T2 --> T3["Tier 3<br/>source-refined or artifact-bound"]
+    T0 -. "same claim ID" .-> T3`}/>
+
+The remainder of the workflow uses one transfer claim to show what changes at
+each step.
+
+## 1. State the claim and bind its subject
+
+A feature request usually begins with a behaviour described informally:
+
+> Add transfers between two balances.
+
+That sentence permits several incompatible implementations because it does not
+state what must remain true. A PDD claim names the invariant:
+
+> For every accepted transfer, the sum of the resulting balances equals the sum
+> of the input balances.
+
+The quantifier and condition matter. The claim applies to every accepted
+transfer, not only the examples in a test file. It says nothing about rejected
+requests, authorization, exchange rates, or whether the balances represent
+real money.
+
+Proofbound gives the claim a stable identifier and exact subject at Tier 0:
+
+```toml
+schema = "proofbound-claim/1"
+id = "TRANSFER-CONSERVES-001"
+title = "Accepted transfers conserve total value"
+statement = "For every accepted transfer, output balances sum to input balances."
+subject = "rust:allowance-kernel::decide_transfer"
+profile = "ledger"
+tier = 0
+primary_linkage = "model-only"
+
+evidence = ["example-test:transfer-examples"]
+assumptions = ["TRANSFER-IDENTITY-001"]
+premises = []
+
+open_obligations = [
+  "Establish the invariant beyond the registered examples."
+]
+out_of_scope = [
+  "Whether the supplied authorization decision identifies the account holder."
+]
+```
+
+The subject is not decorative metadata. Evidence about another function,
+generated tree, package, or binary cannot silently satisfy this claim. The
+manifest also separates the internal statement from any reader-facing
+language, so a friendlier description cannot strengthen the formal property.
+
+The claim should be narrow enough to falsify. “Transfers are safe” hides value
+conservation, overdraft prevention, authorization, replay behavior, numeric
+overflow, and persistence behind one adjective. Separate claims can depend on
+one another, cite different evidence, and fail for different reasons.
+
+## 2. Register assumptions and exclusions
+
+The transfer kernel receives an `authorized` Boolean. Arithmetic code can
+prove what happens when that value is true. It cannot prove that an identity
+provider authenticated the source-account holder before supplying it.
+
+PDD records that boundary as an assumption:
+
+```toml
+schema = "proofbound-assumption/1"
+id = "TRANSFER-IDENTITY-001"
+statement = "The authorization input identifies the source-account holder."
+category = "external-provider"
+owner = "payments integrator"
+rationale = "The transfer kernel consumes a Boolean and performs no authentication."
+scope = "Only the real-world interpretation of accepted transfers as authorized."
+discharge_plan = "Replace the Boolean with separately admitted identity evidence."
+status = "active"
+```
+
+An assumption is a proposition the claim depends on but the current evidence
+does not establish. An exclusion is a question the claim does not attempt to
+answer. “The identity provider is correct” can be an assumption for an
+authorization claim. “The configured transfer cap is commercially sensible”
+is usually an exclusion from an arithmetic claim.
+
+Neither field is fine print. Proofbound includes active assumptions, open
+obligations, undischarged premises, and exclusions in the mandatory “not proved
+/ out of scope” section of every human-facing report.
+
+The CLI makes the assumption closure queryable:
+
+```console
+$ proofbound assumptions --claim TRANSFER-CONSERVES-001
+```
+
+An unproved assumption can be an honest engineering boundary. An unstated
+assumption lets the public statement borrow certainty from a premise the reader
+cannot inspect.
+
+## 3. Design, implement, and refactor the code
+
+PDD does not replace programming with manifests. The developer still chooses
+data structures, APIs, failure behavior, algorithms, and module boundaries.
+The claim changes which decisions must remain observable.
+
+The transfer kernel can return a closed decision type:
+
+```rust
+pub enum Decision {
+    Accepted { from_balance: u64, to_balance: u64 },
+    Denied,
+}
+
+pub fn decide_transfer(
+    authorized: bool,
+    from_balance: u64,
+    to_balance: u64,
+    amount: u64,
+) -> Decision {
+    if !authorized || amount == 0 || amount > from_balance {
+        return Decision::Denied;
+    }
+
+    let Some(to_balance) = to_balance.checked_add(amount) else {
+        return Decision::Denied;
+    };
+
+    Decision::Accepted {
+        from_balance: from_balance - amount,
+        to_balance,
+    }
+}
+```
+
+The function is small and deterministic because that shape makes its semantic
+boundary inspectable. Network calls, identity resolution, storage, and clock
+reads remain outside it. That is a design consequence of the claim, not a
+requirement that the whole application become pure.
+
+A later refactor may change the representation, split the function, or replace
+Rust entirely. PDD does not forbid the change. It requires the project to
+re-establish the affected evidence and linkage before preserving the same
+public status.
+
+## 4. Run tests, bounded checks, and proofs
+
+Evidence enters progressively. Each tier answers a stronger or different
+question, and Proofbound keeps the earlier evidence visible.
+
+### The first rung is CLI-only: Tier 0
+
+An existing project starts with:
+
+```console
+$ proofbound init
+$ proofbound check --fresh
+$ proofbound status
+```
+
+`init` scaffolds a claim ledger around an existing test without inventing a
+domain claim. The developer replaces the placeholder statement, binds the
+actual subject, and registers what the test observes:
+
+```rust
+#[test]
+fn accepted_example_conserves_value() {
+    let result = decide_transfer(true, 20, 10, 5);
+    assert_eq!(result, Decision::Accepted {
+        from_balance: 15,
+        to_balance: 15,
+    });
+}
+```
+
+The honest result is empirical:
+
+```text
+TRANSFER-CONSERVES-001  TESTED  MODEL_ONLY  ADMITTED
+```
+
+It says that the registered example passed. It does not quantify over every
+input. Tier 0 is already useful because the claim, subject, test, assumption,
+and missing universal evidence now have one inspectable closure.
+
+### Tier 1 states the finite boundary
+
+If the input representation is finite, a model checker can explore every value
+within a registered domain. A [Kani](https://github.com/model-checking/kani)
+harness might assert conservation for all symbolic inputs that reach the
+accepted branch:
+
+```rust
+#[kani::proof]
+fn accepted_transfer_conserves_value() {
+    let authorized: bool = kani::any();
+    let from_balance: u8 = kani::any();
+    let to_balance: u8 = kani::any();
+    let amount: u8 = kani::any();
+
+    if let Decision::Accepted { from_balance: next_from, to_balance: next_to } =
+        decide_transfer_u8(authorized, from_balance, to_balance, amount)
+    {
+        assert_eq!(u16::from(next_from) + u16::from(next_to),
+                   u16::from(from_balance) + u16::from(to_balance));
+    }
+}
+```
+
+The evidence manifest preserves the harness identity and finite domain:
+
+```toml
+kind = "bounded-check"
+adapter = "kani"
+expected_inventory = ["accepted_transfer_conserves_value"]
+
+[bounded_domain]
+id = "transfer-u8-domain"
+description = "All Boolean authorization values and all four u8 inputs."
+cardinality = 8589934592
+```
+
+Proofbound can now derive `BOUNDED_CHECKED`, but the public language must retain
+the domain. The number cannot be dropped when a status is copied into release
+notes. An added but unregistered harness also fails the bidirectional inventory
+check rather than silently changing what the job means.
+
+Tier 1 also supports trusted transcription and independent or exhaustive
+checkers. Those evidence kinds remain distinct. Agreement between two
+implementations can expose a disagreement; it does not become a theorem merely
+because the implementations agree.
+
+### Tier 2 proves the model
+
+At Tier 2, Lean can state the invariant over a mathematical model rather than a
+finite machine representation:
+
+```lean
+@[proofbound_claim "TRANSFER-CONSERVES-001"]
+theorem accepted_transfer_conserves
+    {request : Request}
+    {result : Decision}
+    (hDecision : decide request = result)
+    (hAccepted : result.code = .accepted) :
+    result.fromBalance + result.toBalance =
+      request.fromBalance + request.toBalance := by
+  exact Transfer.accept_conserves hDecision hAccepted
+```
+
+Proofbound inventories attributed public theorems from the compiled Lean
+environment, records the exact elaborated statement, and audits the axioms used
+by its proof. Source-text searches are insufficient because notation,
+elaboration, imports, and attributes determine what the kernel actually
+accepted.
+
+This is also where Proofbound's attitude toward the theorem boundary becomes
+visible. Even SHA-256—the digest used later for artifact binding—is a direct
+FIPS 180-4 implementation in Lean. The theorem does not call OpenSSL, ask a
+Rust adapter for a digest, or accept a checker-authored “hash matches” flag.
+The exact bytes and their computed digest remain inside the proposition Lean
+accepts. It would have been much easier to punch out to another tool. That
+would have been the wrong boundary.
+
+The result can be `PROVED · MODEL_ONLY`. `PROVED` says the registered theorem
+was accepted under its visible axiom closure. `MODEL_ONLY` says no checked
+relation yet connects the theorem to `decide_transfer` in the shipping Rust.
+
+### Tier 3 reaches the shipping subject
+
+Tier 3 closes that linkage gap through one of two patterns.
+
+For source refinement,
+[Charon](https://github.com/AeneasVerif/charon) extracts the registered Rust
+closure and [Aeneas](https://github.com/AeneasVerif/aeneas) translates it into
+Lean. A handwritten theorem outside the generator-owned directory relates that
+generated evaluator to the richer model:
+
+```toml
+kind = "source-refinement"
+adapter = "charon-aeneas"
+tier = 3
+claims = ["TRANSFER-CONSERVES-001"]
+refinement_theorem = "Transfers.Refinement.decide_transfer_refines"
+premises = ["TRANSFER-U64-REPRESENTATION-001"]
+
+[operation]
+type = "translation"
+manifest = "proofbound/translations/transfer-kernel.toml"
+targets = ["allowance_kernel::decide_transfer"]
+```
+
+The translation manifest owns the exact start symbol, supported local closure,
+tool invocations, generated destinations, and expected outputs. Two clean runs
+must reproduce byte-identically under the registered normalization. A source
+change can therefore invalidate the refinement rather than leaving a theorem
+green beside different production semantics.
+
+For artifact binding, the theorem itself contains the claim identity, artifact
+schema, logical name, expected digest, exact bytes, and meaning predicate. The
+binding is derived from that elaborated proposition; an adapter cannot confer
+`ARTIFACT_BOUND` by returning `true` in a report.
+
+<Mermaid
+  title="Tier 3 closes the model-to-product gap"
+  description="A model theorem is only model evidence. In the source route, Charon and Aeneas translate selected production source and a refinement theorem connects the generated behavior to handwritten semantics. In the artifact route, a digest-binding theorem connects exact published bytes to a meaning theorem."
+  source={`flowchart LR
+    S["Selected production source"] -->|"Charon + Aeneas"| G["Generated Lean behavior"]
+    G -->|"refinement theorem"| R["PROVED · REFINED"]
+    M["Handwritten Lean semantics"] --> R
+    B["Exact published bytes"] -->|"digest-binding theorem"| A["PROVED · ARTIFACT_BOUND"]
+    Q["Artifact meaning theorem"] --> A`}/>
+
+Tier 3 does not make the entire application proved. It connects one registered
+claim to one exact source or artifact boundary under explicit premises.
+
+## 5. Compile the claim closure
+
+`proofbound check` runs the evidence units, validates their exact inventories,
+builds the typed assurance graph, and derives each claim's status. The status is
+not supplied by the test runner, proof adapter, or claim author.
+
+The derivation has three facets:
+
+$$
+S(C) = \left(F(C), L(C), A(C)\right),
+$$
+
+where $F$ is formal standing, $L$ is linkage to shipping source or bytes, and
+$A$ is the active assumption burden.
+
+| Facet | Possible results | Question answered |
+| --- | --- | --- |
+| Formal standing | `PROVED`, `BOUNDED_CHECKED`, `TESTED`, `OPEN`, `INVALID` | What kind of evidence supports the proposition? |
+| Shipping linkage | `REFINED`, `ARTIFACT_BOUND`, `TRANSCRIBED`, `MODEL_ONLY` | What production subject does that evidence reach? |
+| Assumption burden | `NONE`, `ASSUMED` | Which registered unproved premises remain active? |
+
+The graph has a closed evidence vocabulary and typed edges. A test suite can
+check a claim. It cannot prove a toolchain. A theorem can prove a claim. It
+cannot acquire artifact linkage from a checker-authored Boolean. A missing edge
+can only weaken the result.
+
+<Mermaid
+  title="Proofbound compiles evidence instead of flattening it"
+  description="Strict manifests register claims, subjects, assumptions, policies, and evidence units. Adapters produce typed observations from tests, Kani, Lean, Charon/Aeneas, and artifact checkers. The assurance compiler validates the graph and derives faceted status before creating a receipt for the independent verifier."
+  source={`flowchart LR
+    M["Strict manifests<br/>claims + subjects + policy"] --> C["Assurance compiler"]
+    A["Explicit assumptions<br/>premises + exclusions"] --> C
+    T["Typed adapters<br/>tests · Kani · Lean · translation"] --> C
+    C --> S["Derived status<br/>formal × linkage × assumptions"]
+    S --> R["Canonical receipt"]
+    R --> V["Independent verifier"]`}/>
+
+`check` may write receipts and cache data only beneath `.proofbound/`. It cannot
+rewrite a committed generated translation, fixture, closure, or manifest to
+make the current run pass. `proofbound update UNIT` is the separate door for a
+deliberate, reviewable regeneration.
+
+## 6. Decide whether the required status has been reached
+
+A truthful status and a release decision are different objects. A project may
+honestly derive `TESTED · MODEL_ONLY · ASSUMED` while its policy requires
+`PROVED · REFINED` for a particular authorization kernel.
+
+Proofbound applies a named trust profile and reports whether the current closure
+is admitted. When it is not, the developer gets the affected claim, the broken
+boundary, and the next action:
+
+```console
+$ proofbound explain TRANSFER-CONSERVES-001
+TRANSFER-CONSERVES-001 is PROVED with MODEL_ONLY linkage.
+OPEN: no source-refinement evidence binds the theorem to the Rust subject.
+remediation: register and reproduce the translation unit.
+```
+
+The loop then returns to development. The response may be to reshape an
+effectful function into a smaller deterministic kernel, add a missing overflow
+case, narrow a claim, register an honest assumption, or invest in stronger
+evidence. PDD does not predetermine which response is economical.
+
+`OPEN` means sufficient evidence is absent. `INVALID` means cited evidence is
+malformed, failed, unavailable, stale, ambiguous, or drifted. An assumption may
+be policy-admitted without being discharged. These states require different
+actions and therefore cannot share one red or green badge.
+
+For a proposed change, the developer can inspect assurance movement directly:
+
+```console
+$ proofbound diff main..HEAD
+```
+
+The diff identifies formal downgrades, new assumptions, enlarged trusted
+computing bases, narrowed bounded domains, removed mutation coverage, weakened
+source closures, and linkage regressions. Review can then focus on the product
+claim that changed rather than the raw number of tool findings.
+
+## 7. Review and publish the status and receipt
+
+Once policy admits the claim closure, the release step packages the evidence
+needed by another party:
+
+```console
+$ proofbound release --output release-assurance
+$ proofbound-verify --release release-assurance
+```
+
+The receipt carries the exact claim, public language, subject identities,
+evidence kinds, bounds, theorem statements, assumptions, exclusions, tool
+identities, execution provenance, and derived facets required by its schema.
+The consumer does not need the producer's private repository to inspect the
+result.
+
+`proofbound-verify` is intentionally independent from every other workspace
+crate. It derives receipt validity and status again rather than importing the
+producer's status engine. This does not eliminate trust in the verifier binary,
+runtime, schemas, or cryptographic primitives. It prevents shared application
+code from being silently counted as independent corroboration.
+
+Publication also preserves the gaps. Every human report includes “not proved /
+out of scope,” even when policy admits the release. A customer can distinguish
+an artifact-bound arithmetic theorem from an unproved calibration assumption
+instead of receiving one word: verified.
+
+## PDD changes what completion means
+
+Test-Driven Development made a failing test a useful starting condition. PDD
+keeps that loop and changes the durable object around it. The test can be
+replaced, generalized, bounded, or supplemented by a theorem. The material
+claim remains visible across those changes.
+
+A feature is therefore not complete merely because its implementation exists
+and the current jobs pass. It is complete for a given release policy when:
+
+- the behavioural claim is stated precisely;
+- the shipping subject is identified;
+- the evidence kinds retain their actual scope;
+- assumptions, premises, and exclusions remain visible;
+- the compiled status satisfies the named policy; and
+- another implementation can verify the release receipt.
+
+That definition scales down as well as up. For an ordinary service, completion
+may mean one well-scoped claim bound to existing tests with a known database
+assumption. For a parser, it may justify a finite exhaustive check. For an
+authorization kernel, it may require a Lean theorem and source refinement. For
+a published certificate, it may require a theorem whose statement binds exact
+bytes.
+
+The method allocates proof effort according to consequence. It does not impose
+the cost of Tier 3 on every claim, and it does not let a Tier 0 test borrow Tier
+3 language.
+
+## The claim graph can become part of the software supply chain
+
+Software dependencies currently carry versions, source archives, binaries,
+checksums, SBOMs, and sometimes build provenance. Behavioural assurance usually
+arrives as prose or a badge maintained by the producer.
+
+PDD makes another artifact possible: a portable claim graph. A downstream
+project could require that a decoder's canonicality claim remain
+`ARTIFACT_BOUND`, that an accounting kernel's conservation claim remain
+`REFINED`, or that a cryptographic boundary introduce no new active assumption.
+A dependency update would then be reviewable in terms of changed guarantees,
+not only changed files.
+
+The same structure is useful when software is generated by agents. A claim
+manifest gives the agent a bounded target, while the status compiler prevents
+it from satisfying that target by renaming a test, dropping a model-checking
+bound, hiding an assumption, or asserting its own success. Humans still decide
+whether the formal statement expresses the intended product property. The
+machine checks that the declared evidence does not exceed it.
+
+Proof-Driven Development is therefore not “write the proof before the code.” It
+is:
+
+> State what the software must establish, build the software, and make every
+> level of confidence answerable to an exact evidence boundary.
+
+Proofbound supplies the compiler and receipt format. The development work stays
+where it belongs: inside the loop, changing the program until its important
+claims compile.

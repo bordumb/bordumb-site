@@ -1,0 +1,604 @@
+---
+title: "What does a green build prove?"
+description: "How Auths and auths-proof led to Proof-Driven Development and Proofbound, an assurance compiler that keeps tests, proofs, bounds, and assumptions distinct."
+publishedAt: 2026-09-03
+tags: [formal-methods, software-assurance, testing, architecture]
+draft: false
+featured: false
+---
+
+import Mermaid from "@/components/content/Mermaid.astro";
+
+What does a green build prove?
+
+Usually, it proves that a collection of commands returned the expected exit
+statuses under one configuration at one point in time.
+
+That can be valuable. A test may have caught the bug it was written to catch.
+A model checker may have exhausted a declared finite domain. A proof assistant
+may have accepted a theorem. A build system may have reproduced the same
+artifact. A supply-chain attestation may show which actor performed each step.
+
+Those results do not answer the same question. The green checkmark makes them
+look as if they do.
+
+This is assurance laundering: evidence enters the pipeline with a limited
+meaning and leaves with a stronger label. A finite test suite becomes
+“verified.” A bounded check loses its bound. A theorem about a model becomes a
+claim about shipping code. An active assumption disappears behind `exit 0`.
+
+Consider a transfer function:
+
+```rust
+fn transfer(source: u64, destination: u64, amount: u64) -> Option<(u64, u64)> {
+    if amount == 0 || amount > source {
+        return None;
+    }
+
+    Some((source - amount, destination.checked_add(amount)?))
+}
+```
+
+A unit test can observe one execution:
+
+```rust
+#[test]
+fn rejects_an_overdraft() {
+    assert_eq!(transfer(20, 10, 21), None);
+}
+```
+
+If it passes, we know that this program rejected this overdraft in this test
+environment. We do not yet know that every overdraft is rejected, that every
+accepted transfer conserves value, that the binary sent to a customer contains
+this function, or that the Boolean entering the function came from the account
+holder.
+
+In most software projects, those four claims are compressed into one status—or
+into a reassuring dashboard that assigns them an aggregate number:
+
+```text
+checks: 1,284 passed
+assurance: 94% verified
+```
+
+I have spent the last several months trying to stop that compression. The work
+began by narrowing runtime authority, continued by binding formal reasoning to
+the code that enforced those boundaries, and then escaped its original domain.
+The result is
+[Proofbound](https://github.com/bordumb/proof-bound): an attempt to make a
+software project state what it claims, what evidence supports each claim, what
+the evidence is attached to, and what remains assumed or open.
+
+[![Proofbound on GitHub](https://opengraph.githubassets.com/20260903/bordumb/proof-bound)](https://github.com/bordumb/proof-bound)
+
+## We learned to automate evidence before we learned to compose it
+
+Software testing has always contained an epistemic limit. A test tells us what
+happened for the cases that ran. Dijkstra's 1969
+[Notes on Structured Programming](https://www.cs.utexas.edu/~EWD/transcriptions/EWD02xx/EWD249/EWD249.html)
+used a multiplier with $2^{54}$ possible inputs to show why sampling alone
+cannot establish a property over a large domain. More tests expand the observed
+set. They do not turn that set into a universal statement.
+
+Floyd and Hoare developed another route: assign mathematical meaning to program
+states, then prove that a program preserves a relation from its preconditions
+to its postconditions. Hoare's 1969 paper
+[An axiomatic basis for computer programming](https://doi.org/10.1145/363235.363259)
+made the shape familiar:
+
+$$
+\{P\}\ C\ \{Q\}.
+$$
+
+If precondition $P$ holds, executing command $C$ establishes postcondition
+$Q$. Unlike a list of examples, the statement can quantify over every value in
+the modeled domain.
+
+Model checking made exhaustive reasoning practical for finite state spaces.
+Clarke, Emerson, and Sistla's work on
+[automatic verification of finite-state systems](https://doi.org/10.1145/5397.5399)
+showed that a machine could check a temporal-logic property against a complete
+finite transition graph. The word *finite* remains part of the result. A check
+over all $2^{34}$ values in one registered representation is much stronger than
+four examples and still is not an unbounded theorem over the natural numbers.
+
+The next problem was delivery. A proof in the producer's repository does not
+help a consumer unless the consumer can connect it to the code being accepted.
+Necula's 1997
+[Proof-Carrying Code](https://doi.org/10.1145/263699.263712) made the producer
+carry evidence that a small consumer-side checker could validate. Pnueli,
+Siegel, and Singerman's
+[translation validation](https://doi.org/10.1007/BFB0054170) shifted attention
+from proving a translator correct once to validating the result of a particular
+translation.
+
+More recently, systems such as
+[in-toto](https://www.usenix.org/conference/usenixsecurity19/presentation/torres-arias)
+made software-supply-chain steps and artifact identities verifiable by the
+recipient. That answers who performed a build step, in which declared order,
+over which materials. It does not by itself establish that the resulting
+program conserves value or rejects an unauthorized action.
+
+Each line of work repaired a different broken relation:
+
+- tests connect a program to observed examples;
+- model checkers connect a model to a finite state space;
+- theorem provers connect a formal statement to derivations admitted by a
+  kernel;
+- refinement connects an implementation to a model;
+- artifact binding connects a result to exact published bytes;
+- supply-chain attestations connect materials, actors, and build steps.
+
+The problem is not that any of these forms of evidence is weak. The problem is
+that engineering systems routinely erase their types. A test, a theorem, a
+bounded check, and a signed attestation all become green jobs. A reader then has
+to reconstruct the missing relations from CI configuration, filenames, prose,
+and institutional memory. The dashboard reassures precisely because it omits
+the distinctions a serious claim requires.
+
+## Auths tried to make runtime authority smaller
+
+I started [Auths](https://github.com/auths-dev/auths) because authentication had
+become a coordination ritual. An ordinary action could depend on an identity
+provider, an OAuth exchange, a secret store, a network boundary, a local role,
+and application code all interpreting the same request compatibly. The runtime
+usually received a reusable credential whose authority was larger than the
+action it needed to perform.
+
+The first implementation put a KERI identity model near the center. It grew
+key-event logs, device relationships, Git signing, witness behavior, network
+distribution, SDKs, and product flows around that choice. The system could
+answer increasingly sophisticated questions about a controller's keys while
+making it harder to separate a smaller question:
+
+> What is this principal allowed to do now?
+
+A valid signature establishes control of signing material. It does not grant a
+refund, a database write, or a deployment. Runtime authority needed to
+attenuate: every delegation had to preserve or reduce what could happen rather
+than hand an actor a broad credential and ask surrounding code to remember the
+intended limit. I wrote more about that separation in
+[Why I built Auths](/blog/why-i-built-auths), but the practical consequence was
+a restart. I kept the lessons and removed the assumption that the identity
+system should own the authority model.
+
+The new project was
+[auths-proof](https://github.com/auths-dev/auths-proof). Its boundary was three
+byte strings:
+
+```text
+verify_v1(
+    proof_cbor,
+    canonical_action_cbor,
+    trusted_context_cbor,
+) -> verification_result_cbor
+```
+
+Each input had a different owner.
+
+The presenter supplied signed grants and principal evidence. The application
+profile supplied the exact proposed action. The verifier supplied roots,
+accepted implementations, time, audience, status evidence, policy, and resource
+limits. The proof could carry facts, but it could not add its own trust anchor
+or weaken local policy.
+
+Suppose an agent needed to refund $20 for one payment. A broad credential
+leaves the restriction in surrounding code or natural language:
+
+```text
+STRIPE_SECRET=sk_live_...
+instruction="refund at most $20 for pi_123"
+```
+
+The credential can usually authorize more than the instruction. Auths Proof
+instead made the action part of the authorization input:
+
+```json
+{
+  "operation": "refund.create",
+  "payment_intent": "pi_123",
+  "amount": 2000,
+  "currency": "usd",
+  "audience": "billing.example"
+}
+```
+
+Changing `2000` to `2001`, or `pi_123` to another payment, changes the
+canonical bytes. The existing presentation no longer authorizes the action.
+Only an authorized result contains the sealed command that can cross the
+provider-credential boundary.
+
+Delegation followed the same rule. A child could remove permissions, shorten
+validity, reduce audiences, constrain action bodies, lower a budget, or reduce
+remaining delegation depth. It could not expand any dimension:
+
+```rust
+let child_is_bounded =
+    child.permissions.is_subset(&parent.permissions)
+    && parent.valid_from <= child.valid_from
+    && child.valid_until <= parent.valid_until
+    && child.audiences.is_subset(&parent.audiences)
+    && child.budget <= parent.budget
+    && child.remaining_depth < parent.remaining_depth;
+```
+
+That relation became the subject of
+[Authority should only get smaller](/blog/authority-should-only-get-smaller).
+It also created a new maintenance problem. Once the attenuation rule mattered
+enough to prove, what connected the proof to the Rust function that made the
+shipping decision?
+
+## Auths Proof asked whether the proof could stay attached
+
+Auths Proof used Lean to describe attenuation as a mathematical relation. It
+used [Kani](https://github.com/model-checking/kani) for bounded checks over Rust
+harnesses.
+[Charon](https://github.com/AeneasVerif/charon) extracted selected production
+Rust, and [Aeneas](https://github.com/AeneasVerif/aeneas) translated that
+program into Lean so refinement theorems could compare generated behavior with
+handwritten semantics.
+
+The intended chain connected the shipping function to the mathematical
+relation through two explicit transformations:
+
+<Mermaid
+  title="Auths Proof connects production Rust to its authority semantics"
+  description="Charon extracts the selected production Rust, Aeneas translates that representation into an executable Lean evaluator, and a refinement theorem compares the generated evaluator with the handwritten authority relation."
+  source={`flowchart LR
+    R["Selected production Rust"] -->|"Charon extraction"| A["Aeneas-generated<br/>Lean evaluator"]
+    A -->|"refinement theorem"| S["Handwritten<br/>authority relation"]`}/>
+
+If the selected Rust changed, the extracted program changed. The checked
+translation and refinement evidence then had to be re-established. I described
+that mechanism in
+[A proof should break when the program changes](/blog/a-proof-should-break-when-the-program-changes).
+
+Building it required much more than a theorem. The project needed to pin tool
+versions, inventory every translated symbol, own the generated directory,
+audit axioms, record source closure digests, enumerate Kani harnesses, separate
+model theorems from source refinements, and decide which changes invalidated
+which claims.
+
+At first, those pieces looked like formal-methods infrastructure for an
+authorization project. Then I tried to extract the smallest Auths Proof algebra
+kernel into a generic manifest. The experiment failed in useful ways.
+
+The old qualification manifest recorded expected outputs, but orchestration
+code still owned important Charon and Aeneas arguments. Some generated files
+were counted without being exhaustively discovered. The assurance ledger used
+single labels such as `proved` and `qualified`, collapsing theorem status,
+source linkage, and assumptions. Kani harnesses were counted at the package
+level rather than registered by exact identity.
+
+Those defects had nothing specifically to do with authority. A numerical
+checker, parser, financial state machine, or compiler bridge could make the
+same mistakes. The general question had become:
+
+> What exact claim does this evidence support, and what would make that support
+> stop being valid?
+
+Proofbound began there.
+
+## A claim is the unit of assurance
+
+Most development tooling makes a job the unit of assurance. A job runs tests,
+invokes a prover, scans dependencies, or builds an artifact. Proofbound starts
+with the proposition a person actually cares about.
+
+For the transfer function, a shortened claim manifest looks like this:
+
+```toml
+id = "TRANSFER-CAP-001"
+statement = "Every accepted transfer amount is at most its configured cap."
+subject = "rust:allowance-kernel::decide_transfer"
+profile = "kernel-with-assumptions"
+
+evidence = [
+  "theorem:accept-respects-cap",
+  "bounded-check:transfer-bounds",
+  "example-test:rust-kernel-tests",
+  "mutation-witness:remove-cap-guard",
+]
+
+assumptions = ["IDENTITY-PROVIDER-001"]
+open_obligations = [
+  "Bind the shipping Rust symbol through a reproducible source refinement."
+]
+out_of_scope = [
+  "Whether the configured cap is an appropriate business policy."
+]
+```
+
+The statement, subject, evidence, assumptions, obligations, and exclusions are
+different fields because changing one does not silently change the others.
+
+The bounded-check manifest also carries the part most dashboards omit:
+
+```toml
+kind = "bounded-check"
+expected_inventory = [
+  "accepted_conserves_value",
+  "accepted_never_overdraws",
+  "accepted_respects_cap",
+  "denial_returns_unchanged_state",
+]
+
+[bounded_domain]
+description = "All registered u8 seeds and overflow lanes."
+cardinality = 17179869184
+```
+
+If an unregistered harness appears, the inventory no longer matches. If the
+bound changes, the evidence identity changes. The output cannot drop the finite
+domain and keep the stronger-looking sentence.
+
+Proofbound does not accept a status written by the producer. It derives one
+from the validated closure:
+
+```text
+TRANSFER-CAP-001
+  BOUNDED_CHECKED · MODEL_ONLY · ASSUMED
+
+not proved / out of scope
+  ASSUMPTION IDENTITY-PROVIDER-001
+    The external provider correctly identifies the source-account holder.
+  OPEN
+    No reproducible source refinement binds the theorem to the shipping Rust.
+  OUT OF SCOPE
+    Whether the configured cap is an appropriate business policy.
+```
+
+The result can still be admitted by a policy that permits this evidence grade.
+Admission does not rename it `PROVED`.
+
+## Assurance has more than one axis
+
+The word *proof* tends to collapse three separate facets:
+
+1. **Formal standing:** what kind of evidence supports the proposition?
+2. **Shipping linkage:** what exact source or released bytes is that evidence
+   connected to?
+3. **Assumption burden:** which unproved premises remain active?
+
+Proofbound represents status as a tuple rather than a score:
+
+$$
+S(C) = \left(F(C), L(C), A(C)\right).
+$$
+
+The formal facet $F$ can be `PROVED`, `BOUNDED_CHECKED`, `TESTED`, `OPEN`, or
+`INVALID`. The linkage facet $L$ can be `REFINED`, `ARTIFACT_BOUND`,
+`TRANSCRIBED`, or `MODEL_ONLY`. The assumption facet $A$ records whether active
+assumptions remain.
+
+`NONE` means that no registered active assumption remains in the claim closure.
+It does not claim that the project has discovered every possible source of
+uncertainty. The mandatory exclusions and open-obligation sections preserve
+that boundary.
+
+That means these outcomes remain distinguishable:
+
+| Formal standing | Linkage to shipping code or bytes | Assumption burden | What the combination says |
+| --- | --- | --- | --- |
+| `TESTED` | `MODEL_ONLY` | `NONE` | Registered empirical checks passed, but no refinement or artifact binding connects stronger semantics to a shipping subject. |
+| `BOUNDED_CHECKED` | `MODEL_ONLY` | `ASSUMED` | The registered finite domain was checked exhaustively; shipping linkage is absent and explicit assumptions remain. |
+| `PROVED` | `MODEL_ONLY` | `NONE` | A theorem was accepted, but nothing yet connects that theorem to shipping code or released bytes. |
+| `PROVED` | `REFINED` | `ASSUMED` | A theorem is connected to the registered production source through refinement, with explicit assumptions still active. |
+| `PROVED` | `ARTIFACT_BOUND` | `NONE` | A theorem is connected to the exact registered artifact bytes, with no active registered assumptions. |
+
+There is no meaningful arithmetic that turns those rows into `87% verified`.
+A model-only theorem and an artifact-bound theorem differ along a relation, not
+an amount. A bounded check and an unbounded proof quantify over different
+domains. An assumption is not a percentage penalty; it is a proposition on
+which the larger claim depends.
+
+<Mermaid
+  title="Evidence keeps its type while claims are compiled"
+  description="Tests, bounded checks, theorems, source refinements, artifact checks, and assumptions enter as distinct evidence. Proofbound validates their typed relationships to a registered claim and derives separate formal, linkage, and assumption facets before emitting a portable receipt."
+  source={`flowchart LR
+    T["Tests<br/>observed examples"] --> G["Registered claim graph"]
+    B["Bounded checks<br/>finite domains"] --> G
+    P["Theorems<br/>formal statements + axioms"] --> G
+    R["Refinement<br/>source ↔ model"] --> G
+    D["Artifact checks<br/>exact byte identity"] --> G
+    A["Assumptions<br/>named + scoped"] --> G
+    G --> C["Derived status<br/>formal × linkage × assumptions"]
+    C --> O["Open obligations<br/>and exclusions retained"]
+    C --> X["Portable receipt"]
+    X --> V["Independent verifier"]`}/>
+
+This model also changes the meaning of failure. `OPEN` is not a euphemism for a
+failed proof. It means the registered closure does not contain sufficient
+evidence for the claim. `INVALID` means the available records are malformed,
+stale, contradictory, or otherwise unusable. Both prevent stronger publication
+language, but they describe different epistemic states and require different
+work.
+
+## Evidence should be allowed to invalidate itself
+
+The strongest lesson from Auths Proof was not that every function should have a
+Lean theorem. It was that evidence must contain the conditions under which it
+ceases to apply.
+
+Suppose a theorem establishes a property $C$ of model $M$:
+
+$$
+\operatorname{Theorem}(M, C).
+$$
+
+That does not establish $C$ for production program $P$. A separate refinement
+relation is required:
+
+$$
+\operatorname{Refines}(P, M).
+$$
+
+If a customer receives artifact $B$, one more relation may be required:
+
+$$
+\operatorname{BuiltFrom}(B, P).
+$$
+
+Even then, the result holds only under the theorem's axioms, the representation
+premises of the refinement, and the trust placed in compilers, kernels,
+checkers, and hashing implementations. The receipt does not make those
+dependencies disappear. It makes them enumerable.
+
+This is an epistemic rather than metaphysical system. Proofbound does not make
+a program correct by issuing a receipt. It records why a particular claim is
+currently admitted under a named trust profile. If a source file, theorem
+statement, tool binary, harness inventory, bound, assumption, or artifact
+changes outside the registered closure, the old derivation should stop
+applying.
+
+Verification therefore needs an accounting system that the verification run
+cannot quietly rewrite. Proofbound's manifests name claims, evidence, subjects,
+bounds, assumptions, and tool identities. Its receipts are canonical and
+content-addressed, so changing the recorded closure changes the receipt rather
+than preserving an old reassuring label.
+
+That is why `proofbound check` and `proofbound update` are separate commands.
+Checking may produce fresh ignored receipts, but it cannot quietly rewrite the
+committed claims or generated evidence needed to make itself pass. Updating
+those artifacts is a deliberate reviewable change. The result is tamper-evident
+accounting rather than a dashboard Boolean supplied by the same process that
+wants to pass.
+
+It is also why the final receipt has an independent verifier that shares no
+workspace crate with the compiler that produced it. Independence is never
+absolute—the verifier still trusts its language runtime, cryptographic
+implementation, and inputs—but common implementation code is not silently
+presented as corroboration.
+
+## An unproven assumption is not a failed claim
+
+Security systems often describe themselves as trustless when they have moved
+trust into protocol rules, software, hardware, or social coordination. Formal
+systems can make a similar mistake by treating the proof kernel, axioms,
+translators, and representation premises as if they were outside the result.
+
+Proofbound treats trust as part of the claim closure.
+
+An unproven assumption is not a failure. It may be the correct boundary for a
+claim: the arithmetic kernel can prove consequences of an authorization bit
+without proving the external identity system. An unstated assumption is a lie
+because it lets the published claim borrow certainty from a premise the reader
+cannot inspect.
+
+In the transfer example, the arithmetic theorem may establish that accepted
+state transitions conserve value. It cannot establish that an external
+identity provider correctly authenticated the account holder. That dependency
+is an assumption:
+
+```toml
+id = "IDENTITY-PROVIDER-001"
+statement = "The provider's authorized response identifies the account holder."
+owner = "payments integrator"
+scope = "The real-world interpretation of accepted transfers as authorized."
+discharge_plan = "Replace the Boolean boundary with separately admitted evidence."
+status = "active"
+```
+
+The theorem remains useful. The assumption prevents its arithmetic conclusion
+from silently becoming an identity claim.
+
+An exclusion serves a different purpose. “Whether this cap is good policy” is
+not a premise required by the arithmetic. It is a question the claim does not
+attempt to answer. Both belong in every human-facing report because readers
+otherwise tend to expand a precise result into the conclusion they hoped to
+receive.
+
+The current Proofbound repository applies this rule to itself. Its
+Charon/Aeneas source-refinement route remains visibly open until the exact
+pinned translation capability is admitted by its own manifests. Existing
+tests, Kani checks, and model theorems are not relabeled to cover that absence.
+A project about honest evidence has to be willing to publish an inconvenient
+status about its own strongest feature.
+
+## Proof-driven development starts before the proof
+
+Formal methods are often introduced after an implementation has become
+important enough to justify them. The specialist then has to recover the
+intended property, isolate a tractable model, locate the shipping boundary, and
+work out which assumptions the production system had already normalized into
+folklore.
+
+Proof-driven development changes the order without replacing development. The
+developer still designs, implements, tests, and refactors the program. The
+registered claim supplies a stable acceptance condition around that work, and
+Proofbound reports whether the available evidence still supports it.
+
+<Mermaid
+  title="Development sits inside the assurance loop"
+  description="The developer designs, implements, and refactors code, then runs the relevant tests, model checks, and proofs. Proofbound compiles that evidence with the registered claim, assumptions, and exclusions. A named gap returns to development; an admitted status proceeds to review and publication."
+  source={`flowchart LR
+    C["State the claim<br/>and bind its subject"] --> D["Design, implement,<br/>and refactor code"]
+    D --> E["Run tests, bounded checks,<br/>and proofs"]
+    E --> P["Proofbound compiles<br/>the claim closure"]
+    A["Register assumptions<br/>and exclusions"] --> P
+    P --> V{"Required status<br/>reached?"}
+    V -->|"no: named gap"| D
+    V -->|"yes"| R["Review and publish<br/>status + receipt"]`}/>
+
+A team can start with one ordinary test and an honest status of
+`TESTED · MODEL_ONLY`. It can add mutation witnesses to show that the test
+detects named faults. It can add property tests without pretending that sampled
+generation was exhaustive. It can move a bounded kernel into Kani, state the
+finite domain, prove a corresponding Lean theorem, refine production source to
+the model, or bind a theorem to exact release bytes.
+
+The claim identity remains stable while the evidence strengthens. The work is
+incremental because the project does not have to choose between “unverified”
+and “formally verified” as total-system labels.
+
+## I want claims to travel with software
+
+Auths began with a desire to let authority cross system boundaries without
+requiring every participant to share one identity provider or authorization
+server. Proofbound carries the same instinct into software assurance.
+
+Today, a dependency usually arrives with source, binaries, a version, an SBOM,
+and perhaps build provenance. Behavioral claims remain on a website, in an
+audit report, or in the maintainer's confidence. Every downstream team repeats
+some portion of the same investigation and then compresses its conclusion into
+another badge.
+
+I want a dependency to carry a claim receipt that says:
+
+- the exact proposition being asserted;
+- whether its support is a test, bounded check, theorem, refinement, artifact
+  binding, independent check, or review;
+- the precise source or bytes to which that evidence applies;
+- the axioms, tools, and assumptions still trusted;
+- the exclusions and open obligations that limit the public statement; and
+- enough canonical data for a small independent verifier to re-derive the
+  status.
+
+That creates the possibility of a claim supply chain. A parser can depend on a
+canonical-decoding claim from a library. A payment service can depend on an
+arithmetic-conservation claim from a state machine. A release gate can reject a
+dependency update because a required claim became `MODEL_ONLY`, not merely
+because a generic job somewhere turned red.
+
+AI-generated code makes this direction more urgent without defining it. When
+the volume of code grows faster than careful human review, “someone looked at
+the diff” becomes a weaker foundation. A registered claim can become the stable
+contract for both humans and automated contributors: change the program as
+needed, but the evidence closure must still compile, and any weakened guarantee
+must appear as a changed status rather than a plausible explanation.
+
+The vision is not a world in which every line has a proof. It is a world in
+which important claims cannot borrow certainty from unrelated green lights.
+Tests remain tests. Bounds remain attached to bounded checks. Model theorems
+remain model theorems until a bridge reaches production. Assumptions remain
+visible after everyone has grown used to them. Published bytes can be checked
+without trusting the repository that produced the receipt.
+
+Auths asked how authority could become smaller and more exact as it moved.
+Auths Proof asked how one verifier could decide that question from explicit
+inputs. Proofbound asks the corresponding question of software knowledge:
+
+> What are we entitled to claim, given the exact evidence we have?
+
+A green build should be able to answer.
