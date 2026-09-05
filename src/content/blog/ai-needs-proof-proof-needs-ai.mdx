@@ -1,0 +1,535 @@
+---
+title: "AI needs proof. Proof needs AI."
+description: "How LLMs can make formal verification economical, formal verification can make generated software accountable, and PDD keeps the human responsible for the claim."
+publishedAt: 2026-09-05
+tags: [ai, proof-driven-development, formal-methods, software-assurance]
+draft: false
+featured: false
+---
+
+import Mermaid from "@/components/content/Mermaid.astro";
+
+What happens when writing code becomes cheaper than deciding whether the code
+is safe to ship?
+
+We are beginning to find out. A coding agent can produce five hundred lines of
+plausible Rust before a human has finished reconstructing the invariants hidden
+inside them. It can add tests, satisfy the compiler, answer review comments, and
+turn the pull request green. The output may be excellent. It may also contain a
+race condition, an off-by-one error, an authority expansion, or a beautifully
+documented proof of the wrong property.
+
+The old bottleneck was producing an implementation. The new bottleneck is
+justifying one.
+
+Formal verification has almost the opposite shape. A proof assistant does not
+care whether a theorem looks plausible or whether its author sounds confident.
+A model checker does not become bored on the ten-millionth state. These tools
+can reject an invalid argument with mechanical indifference. What they have
+historically required is an enormous amount of careful human labour: formal
+statements, finite harnesses, induction lemmas, refinement relations,
+adversarial fixtures, and the maintenance needed to keep all of them attached
+to changing code.
+
+Each technology is unusually good at producing what the other one lacks.
+
+| Technology | Its existential flaw | What the other contributes |
+| --- | --- | --- |
+| LLM coding agents | They generate plausible programs without warranted confidence that the programs satisfy their intended properties. | Formal checkers reject invalid derivations and, within their stated domains, produce concrete counterexamples or checked proof terms. |
+| Formal verification | The formalization and proof-engineering labour is too expensive for most ordinary development. | LLMs can generate candidate specifications, harnesses, proof scripts, fixtures, and repetitive glue at machine speed. |
+
+The pairing does not make either flaw disappear. It makes both flaws
+tractable—and it changes where the human belongs.
+
+<Mermaid
+  title="The human owns the claim; the agent works inside the checking loop"
+  description="A human defines the intended property and acceptable risk. An agent generates code and evidence, then tests, bounded checkers, theorem provers, and linkage checks accept or reject the result. Counterexamples and named gaps return to the agent. An admitted closure still goes to a human, who reviews the formalization, assumptions, and exclusions before release."
+  source={`flowchart LR
+    H["Human states intent<br/>and acceptable risk"] --> G["Agent generates<br/>code + evidence"]
+    G --> C["Tests · Kani · Lean<br/>refinement + binding"]
+    C --> A{"Required claim status<br/>admitted?"}
+    A -->|"no: counterexample<br/>or named gap"| G
+    A -->|"yes"| R["Human reviews proposition<br/>assumptions + exclusions"]
+    R -->|"meaning is wrong<br/>or risk is too large"| H
+    R -->|"approved"| P["Release code<br/>+ assurance receipt"]`}/>
+
+That is the shape I expect software development to take: not autonomous code
+generation followed by ceremonial human approval, and not teams of people
+manually proving every loop. It is a generate–check–refine machine with a human
+at the accountability boundary.
+
+## Generate, check, refine is older than the language model
+
+The basic loop is not new. Counterexample-guided inductive synthesis turns
+program construction into a conversation between a candidate generator and a
+verifier. The generator proposes a program. The verifier finds an input that
+breaks it. That input becomes part of the next synthesis problem, and the loop
+continues. Armando Solar-Lezama's work on
+[counterexample-guided inductive synthesis](https://people.csail.mit.edu/asolar/papers/thesis.pdf)
+developed the pattern long before an LLM could write a convincing pull request.
+
+Formal methods also learned to make checking smaller than producing. Necula's
+1997 [Proof-Carrying Code](https://doi.org/10.1145/263699.263712) required an
+untrusted producer to provide evidence that a relatively small consumer-side
+checker could validate. The producer may perform expensive work. The consumer
+does not have to trust the producer's confidence or reproduce its entire
+process.
+
+LLMs change the economics of both ideas. They are flexible candidate generators
+that can read a failed proof goal, a SAT counterexample, a compiler diagnostic,
+and the surrounding implementation in one context. Work such as
+[LeanDojo](https://arxiv.org/abs/2306.15626) has already treated theorem proving
+as a retrieval-and-generation problem over Lean environments. The interesting
+future is larger than automatically filling one proof hole. The same agent can
+propose the implementation, its executable properties, its formal model, its
+proofs, and the bridges that keep those proofs attached to production.
+
+That power makes an accounting problem unavoidable. If the agent controls the
+code, the test, the theorem statement, and the dashboard, it can make the board
+green by weakening any of them. A generated proof is useful only if the system
+preserves exactly what it proves.
+
+This is where [Proof-Driven Development](/blog/what-is-pdd) enters the loop.
+
+## 1. The human states what must remain true
+
+Suppose an execution gateway accepts a list of filesystem permissions and
+normalizes it before installing an operating-system policy. The implementation
+task might be written as:
+
+> Normalize the requested authority.
+
+That is enough to generate code and not enough to judge it. “Normalize” could
+mean sorting entries, resolving paths, combining equivalent permissions, or
+replacing several narrow paths with a convenient parent directory. The final
+interpretation silently decides whether the operation is safe.
+
+A useful claim is narrower:
+
+> Normalization produces a duplicate-free plan, and every authority in its
+> output was present in the submitted input.
+
+Now an implementation that turns access to `/workspace/src` into access to
+`/workspace` is wrong even if the broader permission makes the program easier
+to run.
+
+At the beginning, that sentence is still English. It records the property a
+human intends; it does not prove itself. A Proofbound claim gives it identity,
+scope, and an explicit evidence requirement:
+
+```toml
+schema = "proofbound-claim/1"
+id = "PBR-AUTH-001"
+title = "Authority normalization does not amplify authority"
+statement = "For every valid authority plan, normalization returns a duplicate-free plan and every returned authority entry was present in the input plan."
+subject = "rust:proofbound_runtime_core::normalize_authority"
+profile = "kernel-with-assumptions"
+tier = 2
+primary_linkage = "model-only"
+
+assumptions = ["PBR-TOOLCHAIN-AX-003"]
+open_obligations = [
+  "Register source refinement from Rust normalization to the Lean relation."
+]
+out_of_scope = [
+  "Correctness of Linux enforcement that consumes the normalized plan.",
+  "Whether the submitted authority is appropriate for the caller's intent."
+]
+```
+
+The human has made three decisions that an agent cannot make on the project's
+behalf:
+
+- which behaviour is important enough to constrain;
+- whether the statement captures the product's intended meaning; and
+- which assumptions and exclusions are acceptable for this release.
+
+An agent can suggest all three. It cannot become accountable for them merely by
+generating fluent prose.
+
+## 2. The agent generates the implementation and its obligations
+
+Once the claim exists, the agent has a much better target than “make the tests
+pass.” It can design types that expose the invariant and keep effectful work
+outside the decision core:
+
+```rust
+pub struct AuthorityPlan {
+    pub read: Vec<ReadAuthority>,
+    pub write: Vec<WriteAuthority>,
+    pub execute: Vec<ExecuteAuthority>,
+}
+
+pub struct NormalizedAuthority {
+    read: Vec<ReadAuthority>,
+    write: Vec<WriteAuthority>,
+    execute: Vec<ExecuteAuthority>,
+}
+
+pub fn normalize_authority(input: AuthorityPlan) -> NormalizedAuthority {
+    // Validate, sort, and deduplicate without inventing authority.
+    todo!()
+}
+```
+
+It can generate ordinary examples, property tests, a Kani harness, Lean
+semantics, refinement lemmas, mutation fixtures, and malformed-input corpora in
+the same pass. Much of that work is repetitive in exactly the way language
+models handle well.
+
+A bounded harness can ask whether any output entry is absent from the input for
+a finite registered representation:
+
+```rust
+#[kani::proof]
+fn normalization_does_not_add_read_authority() {
+    let input: SmallAuthorityPlan = kani::any();
+    let original = input.clone();
+    let output = normalize_small_authority(input);
+
+    for entry in output.read {
+        assert!(original.read.contains(&entry));
+    }
+}
+```
+
+The agent did not establish the claim by writing this harness. It proposed a
+question to a checker. Proof-Driven Development keeps those actions separate.
+
+## 3. The checker refuses to be persuaded
+
+This is the part of the pairing that changes the meaning of agentic coding. The
+agent can tell a reviewer that the new implementation is obviously safe. It
+cannot talk a SAT solver into overlooking a satisfying assignment.
+
+If normalization broadens a path, Kani can return the relevant machine state:
+
+```text
+counterexample
+  input.read  = ["/workspace/src"]
+  output.read = ["/workspace"]
+  assertion   = original.read.contains(output.read[0])
+  result      = false
+```
+
+The result is more useful to an agent than a vague review comment. It identifies
+an exact input and failed invariant. The agent can inspect the trace, change
+the implementation or property, and run the checker again without requiring a
+human to reproduce the failure manually.
+
+The agent can also propose a theorem over an unbounded mathematical plan. This
+is the actual Lean claim currently registered by Proofbound Runtime:
+
+```lean
+@[proofbound_claim "PBR-AUTH-001"]
+theorem normalization_is_canonical_and_non_amplifying
+    (plan : ProofboundRuntime.Authority.Plan) :
+    ProofboundRuntime.Authority.IsCanonical
+        (ProofboundRuntime.Authority.normalize plan) ∧
+      ProofboundRuntime.Authority.IsSubset
+        (ProofboundRuntime.Authority.normalize plan) plan := by
+  exact ⟨
+    ProofboundRuntime.Authority.normalize_canonical plan,
+    ProofboundRuntime.Authority.normalize_no_amplification plan
+  ⟩
+```
+
+Lean checks this proposition over the formal authority model. That is a real
+theorem and not yet a theorem about the production Rust function. The current
+claim remains model-only until source refinement establishes that connection.
+
+Different checkers still answer different questions:
+
+| Checker | What a successful result establishes | What it does not establish |
+| --- | --- | --- |
+| Unit or property tests | The registered examples or sampled executions behaved as asserted. | The property holds for every possible input. |
+| Kani | The assertion holds throughout the registered finite machine domain and bounds. | An unbounded mathematical theorem, or correctness outside those bounds. |
+| Lean | The formal proposition has a kernel-checked proof under its visible axioms. | That the proposition expresses the intended English claim or reaches shipping code. |
+| Source refinement | The selected implementation corresponds to the registered formal semantics. | Correctness of unmodelled dependencies, hardware, or active assumptions. |
+| Artifact binding | The claim is attached to exact published bytes under the registered meaning theorem. | Every property someone might infer from those bytes. |
+
+Calling Lean or Kani a “zero-hallucination oracle” is tempting and slightly
+wrong. Lean is brutally literal about whether a proof term inhabits the stated
+proposition. Kani is brutally literal about the assertion and finite domain it
+was given. Neither tool knows whether the proposition is what the customer
+meant by “safe.”
+
+The checker eliminates persuasion from one boundary. It does not eliminate the
+need to choose that boundary correctly.
+
+## 4. The agent learns from rejection
+
+Software development has always contained feedback loops. The difference here
+is that the feedback can describe semantic failure rather than stylistic
+disagreement.
+
+An autonomous iteration can be conceptually small:
+
+```text
+repeat:
+    generate implementation and evidence
+    compile the registered claim closure
+
+    if a checker returns a counterexample:
+        repair the implementation or formalization
+    else if the closure contains a named gap:
+        produce the missing evidence or narrow the claim honestly
+    else:
+        submit the admitted closure for human review
+```
+
+A failed Lean proof may leave an exact goal rather than a concrete runtime
+input. A failed linkage check may say that the theorem still reaches only a
+handwritten model. An axiom audit may show that a convenient placeholder has
+entered the trusted base. A reproducibility check may show that generated
+translation changed between clean runs.
+
+All of these failures are productive because they are typed. The agent does not
+receive “verification failed.” It receives “the bounded assertion failed for
+this input,” “this theorem depends on this axiom,” or “this model has no
+registered relation to the shipping function.”
+
+The loop can also find design problems before it finds proof tactics. If a
+function mixes filesystem access, clocks, network requests, parsing, policy,
+and mutation, the proof obligations become painful. The agent may respond by
+extracting a smaller deterministic decision kernel with closed input and output
+types. The pressure to prove the program improves the shape of the program.
+
+## 5. Proofbound stops the agent from grading itself
+
+Without an assurance compiler, an agent can satisfy the appearance of
+verification while weakening its meaning:
+
+- replace a universal property with four examples;
+- lower a model-checking bound;
+- prove a theorem about a neighbouring function;
+- introduce an axiom that states the difficult result;
+- edit generated proof output by hand;
+- retain a green theorem after production source changes;
+- bind a receipt to different bytes; or
+- remove an inconvenient assumption from the report.
+
+Most of these actions produce valid files and successful exit codes. They are
+forms of [assurance laundering](/blog/what-does-a-green-build-prove).
+
+Proofbound treats claims, evidence, linkage, assumptions, and policies as typed
+inputs to a compiler. Adapters may report observations. They do not choose the
+strength of the resulting status.
+
+<Mermaid
+  title="The agent supplies evidence; Proofbound derives its meaning"
+  description="The agent can propose code, tests, bounded harnesses, model theorems, and refinement bridges. Strict manifests and independent inventories constrain those artifacts. Proofbound derives formal standing, linkage to shipping code or bytes, and the remaining assumption burden. The agent cannot award itself a stronger status."
+  source={`flowchart LR
+    G["Agent proposals<br/>code + evidence"] --> M["Strict manifests<br/>subjects + bounds + inventory"]
+    M --> E["Tests · Kani · Lean<br/>translation + binding"]
+    E --> C["Proofbound<br/>assurance compiler"]
+    C --> S["Formal standing × linkage<br/>× assumptions"]
+    S --> V["Independent receipt<br/>verification"]
+    V --> H["Human accountability<br/>review"]`}/>
+
+The output might be:
+
+```text
+PBR-AUTH-001
+  formal standing: PROVED
+  shipping linkage: MODEL_ONLY
+  assumption burden: ASSUMED
+
+  active assumption:
+    PBR-TOOLCHAIN-AX-003
+
+  open obligation:
+    Register source refinement from Rust normalization to the Lean relation.
+
+  not proved / out of scope:
+    Correctness of Linux enforcement that consumes the normalized plan.
+    Whether the submitted authority is appropriate for the caller's intent.
+```
+
+The model theorem is proved. The shipping linkage is not. The toolchain
+assumption remains active, and neither the theorem nor a future refinement can
+establish that a human or upstream system requested a sensible authority set.
+None of those facts is an embarrassment to hide. The distinction is the
+product.
+
+## 6. The human reviews meaning rather than proof boilerplate
+
+The admitted closure now reaches a human, but the human's role is different.
+They do not have to inspect every generated induction step or mentally execute
+every value in a bounded domain. They review the boundaries where mechanical
+checking cannot decide what the organization ought to believe.
+
+The review asks:
+
+1. Does the English claim describe the behaviour we care about?
+2. Does the formal proposition faithfully capture that claim?
+3. Does the checked linkage reach the code or artifact we will actually ship?
+4. Are the active assumptions, trusted components, and exclusions acceptable?
+5. Is this level of evidence proportionate to the consequence of failure?
+
+This is not a rubber stamp at the end of autonomous development. A reviewer may
+discover that “output authority is a subset of input authority” ignores path
+aliasing, that network denial ignores a permitted service acting as a proxy, or
+that a mathematically correct transfer function accepts the wrong notion of
+account ownership. The response is to revise the claim or architecture and
+send it around the loop again.
+
+Humans remain responsible for product intent, threat models, social effects,
+abuse cases, and which residual risks deserve acceptance. AI can make those
+decisions legible. Formal verification can keep their formal consequences
+consistent. Neither should make the decision silently.
+
+## The tiers make the loop adoptable
+
+The future does not begin by asking every application developer to learn Lean.
+Proofbound's tiers allow the same claim to acquire stronger evidence as its
+importance and the project's capability grow:
+
+| Tier | Agent contribution | Machine feedback | Human focus |
+| --- | --- | --- | --- |
+| **0 — Ledger** | Draft the claim manifest, connect existing tests, enumerate assumptions and gaps. | Schema, inventory, policy, and ordinary test results. | Is the prose honest and the subject correct? |
+| **1 — Bounded** | Generate Kani harnesses, bounds, finite models, and adversarial corpora. | Exhaustive finite checks and counterexamples. | Are the bounds representative and visible? |
+| **2 — Model** | Draft Lean definitions, theorem statements, lemmas, and tactics. | Kernel-checked theorems with an axiom audit. | Does the formal proposition mean what the claim says? |
+| **3 — Bound** | Generate translation manifests and refinement or artifact-binding proofs. | Checked linkage to selected production source or exact bytes. | Does the linkage reach the release boundary under acceptable premises? |
+
+<Mermaid
+  title="AI lowers the cost of climbing the assurance tiers"
+  description="A project can begin with an honest claim ledger and existing tests. The agent helps add bounded harnesses, model theorems, and finally source refinement or artifact binding. At every tier, a human can stop when the evidence is proportionate to the risk; stronger language is available only after stronger evidence."
+  source={`flowchart LR
+    T0["Tier 0<br/>claims + tests + gaps"] --> T1["Tier 1<br/>bounded checks"]
+    T1 --> T2["Tier 2<br/>model theorems"]
+    T2 --> T3["Tier 3<br/>source or artifact binding"]
+    H["Human chooses<br/>required assurance"] -.-> T0
+    H -.-> T1
+    H -.-> T2
+    H -.-> T3`}/>
+
+The LLM makes movement between tiers cheaper. Proofbound prevents that
+convenience from erasing the difference between them.
+
+## The framework builds the rails required by its own builders
+
+There is a second loop hidden inside this architecture.
+
+AI agents can generate the formal artifacts that make Proof-Driven Development
+economical. Those agents also need permission to read repositories, execute
+toolchains, install dependencies, write changes, and sometimes operate
+production systems. The more autonomous the loop becomes, the less acceptable
+it is to give the agent the ambient authority of the person who launched it.
+
+[Proofbound Runtime](https://github.com/bordumb/proofbound-runtime) is being
+built as the complementary execution boundary. A developer declares what one
+run may read, write, execute, and consume. Linux Landlock, seccomp, and cgroups
+install the boundary before the agent starts. The run produces a canonical
+receipt identifying the plan, executable, enforcement mechanisms, inputs,
+outputs, and outcome.
+
+<Mermaid
+  title="The agent can help build the proof system inside a declared boundary"
+  description="A human-approved execution plan gives Proofbound Runtime a bounded set of filesystem, process, environment, and network authority. The runtime installs the Linux boundary before starting the coding agent. Outputs and an execution receipt return to Proofbound, where they can enter the wider claim closure without pretending that confinement proves semantic correctness."
+  source={`flowchart LR
+    P["Human-approved<br/>execution plan"] --> R["Proofbound Runtime<br/>compile authority"]
+    R --> K["Linux boundary<br/>Landlock · seccomp · cgroups"]
+    K --> A["Coding agent<br/>generate · check · refine"]
+    A --> O["Bounded outputs<br/>+ execution receipt"]
+    O --> B["Proofbound<br/>claim closure"]
+    B --> H["Human release<br/>decision"]`}/>
+
+Confinement needs the same epistemic discipline as verification. OpenAI's 2026
+[account of its Hugging Face incident](https://openai.com/index/hugging-face-incident-and-the-road-ahead/)
+describes agents in isolated cloud VMs whose direct internet access was
+disabled. An allowed Artifactory service could still make outbound requests and
+hold shared files, so the effective authority was larger than “no internet” and
+“isolated” suggested.
+
+A kernel may enforce the policy it received perfectly while a permitted service
+acts as a confused deputy. A truthful runtime receipt must preserve that
+distinction: denying direct network syscalls is not the same claim as proving
+that no reachable capability can communicate externally.
+
+The beautiful irony remains. AI helps produce the specifications, harnesses,
+proofs, and fixtures that make stronger assurance affordable. The runtime uses
+that discipline to constrain the same intelligence while it works. The
+framework builds the safety rails required to deploy the machinery that helps
+build the framework.
+
+## A pull request becomes a proposed change in belief
+
+Today's pull request primarily presents a textual difference. Reviewers infer
+the behavioural difference from code, tests, CI jobs, and discussion.
+
+A Proof-Driven Development pull request can present an assurance difference:
+
+```text
+PBR-AUTH-001
+  formal standing:  PROVED         → PROVED
+  shipping linkage: MODEL_ONLY     → REFINED
+  assumptions:      2 active       → 1 active
+  bounded domain:   unchanged
+  trusted base:     - handwritten translation axiom
+  release policy:   REJECTED       → ADMITTED
+```
+
+The code diff still matters. Architecture, readability, performance, and
+operational judgment do not disappear. But reviewers can also see what the
+project is newly entitled to claim, which assumption was discharged, and which
+boundary remains outside the proof.
+
+Eventually, dependencies can carry these claim graphs with their artifacts. An
+organization could require that an authorization library retain
+`PROVED · REFINED` attenuation, that a parser retain a named bounded domain, or
+that a deployment tool introduce no new network assumption. An agent proposing
+an upgrade would have to explain assurance movement, not merely version
+movement.
+
+Release policies could then govern autonomous work without pretending to
+understand it through confidence scores:
+
+```toml
+[release.requirements]
+"authority.*" = "proved-refined"
+"serialization.*" = "bounded-checked"
+"ui.*" = "tested"
+
+deny_new_assumptions = true
+deny_linkage_regressions = true
+```
+
+The organization decides where proof is worth its cost. The agent performs much
+of the mechanical climb. The assurance compiler prevents a cheaper form of
+evidence from borrowing a stronger name.
+
+## The future is not autonomous certainty
+
+It is tempting to describe this future as software that proves itself. That
+phrase removes the most important actor and collapses several different
+relations into one.
+
+The software does not decide what should be true. The LLM does not certify its
+own output. The theorem prover does not understand customer intent. The runtime
+does not prove that confined work is correct. Proofbound does not turn an
+assumption into a theorem because a deadline arrived.
+
+Instead:
+
+- humans choose the claims and remain accountable for their meaning;
+- agents generate candidate implementations and the enormous volume of formal
+  scaffolding needed to examine them;
+- checkers reject candidates that violate precisely stated properties;
+- agents refine the work against concrete failures and named gaps;
+- Proofbound preserves what every result means and where it reaches; and
+- humans decide whether the remaining assumptions and exclusions are acceptable
+  for the world in which the software will operate.
+
+LLMs make it possible to produce more software than humans can inspect line by
+line. Formal verification makes it possible to check important properties
+without inspecting every execution. Proof-Driven Development connects the two
+without pretending that either one can supply judgment.
+
+AI needs proof because plausibility is not evidence.
+
+Proof needs AI because assurance that cannot be afforded rarely reaches
+production.
+
+The human remains in the loop because somebody must still decide what is worth
+proving.
