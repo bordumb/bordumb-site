@@ -7,6 +7,7 @@ import {
   socialImagePath,
   socialTagLabel,
   staticSocialCards,
+  twitterImagePath,
   type SocialCard,
 } from "../src/utils/social";
 
@@ -131,7 +132,7 @@ function renderCard(
       <text x="84" y="82" fill="#1d5e54" font-family="Social Mono, monospace" font-size="22" letter-spacing="2.2">BORDUMB</text>
       <text fill="#171815" font-family="Social Serif, serif" font-size="${fontSize}" font-weight="400" letter-spacing="-2.4">${titleLines}</text>
       <line x1="84" y1="536" x2="1116" y2="536" stroke="#171815" stroke-opacity="0.22" />
-      <text x="84" y="580" fill="#64655e" font-family="Social Mono, monospace" font-size="17" letter-spacing="1.5">BORDUMB.DEV</text>
+      <text x="84" y="580" fill="#64655e" font-family="Social Mono, monospace" font-size="17" letter-spacing="1.5">BORDUMB.COM</text>
     </svg>`;
 }
 
@@ -194,10 +195,18 @@ await rm(outputDirectory, { recursive: true, force: true });
 for (const card of [...staticSocialCards, ...posts]) {
   const relativeOutput = socialImagePath(card.pathname).replace(/^\//, "");
   const outputPath = path.join(projectRoot, "public", relativeOutput);
+  const relativeTwitterOutput = twitterImagePath(card.pathname).replace(/^\//, "");
+  const twitterOutputPath = path.join(projectRoot, "public", relativeTwitterOutput);
+  const cardSvg = Buffer.from(renderCard(card.title, serifFont, monoFont));
   await mkdir(path.dirname(outputPath), { recursive: true });
-  await sharp(Buffer.from(renderCard(card.title, serifFont, monoFont)))
+  await mkdir(path.dirname(twitterOutputPath), { recursive: true });
+  await sharp(cardSvg)
     .png({ compressionLevel: 9 })
     .toFile(outputPath);
+  await sharp(cardSvg)
+    .resize(1200, 600, { fit: "cover" })
+    .jpeg({ quality: 92, chromaSubsampling: "4:4:4" })
+    .toFile(twitterOutputPath);
 }
 
 await sharp(Buffer.from(renderIcon(serifFont)))
@@ -205,5 +214,5 @@ await sharp(Buffer.from(renderIcon(serifFont)))
   .toFile(path.join(projectRoot, "public/icon.png"));
 
 console.log(
-  `Generated ${staticSocialCards.length + posts.length} social images and the site icon.`,
+  `Generated ${staticSocialCards.length + posts.length} Open Graph and Twitter card pairs, plus the site icon.`,
 );

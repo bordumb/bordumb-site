@@ -17,6 +17,13 @@ export function socialImagePath(pathname: string): string {
   return `/social/${filename}.png`;
 }
 
+export function twitterImagePath(pathname: string): string {
+  const normalized = pathname.replace(/^\/+|\/+$/g, "");
+  const filename = normalized || "index";
+
+  return `/social/twitter/${filename}.jpg`;
+}
+
 export function socialTagLabel(tag: string): string {
   return tag
     .split("-")
