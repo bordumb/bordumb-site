@@ -8,7 +8,7 @@ import rehypeKatex from "rehype-katex";
 import { codeHighlightOptions } from "./src/utils/code-theme.mjs";
 
 export default defineConfig({
-  site: process.env.SITE_URL ?? "https://bordumb.dev",
+  site: process.env.SITE_URL ?? "https://www.bordumb.com",
   output: "static",
   adapter: vercel({
     webAnalytics: { enabled: true }
