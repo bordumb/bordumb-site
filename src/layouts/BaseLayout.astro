@@ -1,24 +1,28 @@
 ---
 import Header from "@/components/Header.astro";
 import Footer from "@/components/Footer.astro";
+import { socialImagePath } from "@/utils/social";
 import "@/styles/global.css";
 
 type Props = {
   title?: string;
   description?: string;
   image?: string;
+  socialTitle?: string;
   article?: boolean;
 };
 
 const {
   title = "bordumb — systems, proofs, and bounded power",
   description = "Writing and work on identity, authority, behavioral safety, formal methods, and the human questions beneath them.",
-  image = "/og.png",
+  image,
+  socialTitle = title.replace(/\s+—\s+bordumb$/, ""),
   article = false,
 } = Astro.props;
 
 const canonical = new URL(Astro.url.pathname, Astro.site);
-const socialImage = new URL(image, Astro.site);
+const socialImage = new URL(image ?? socialImagePath(Astro.url.pathname), Astro.site);
+const socialImageAlt = `${socialTitle} — bordumb`;
 ---
 
 <!doctype html>
@@ -33,14 +37,21 @@ const socialImage = new URL(image, Astro.site);
     <link rel="canonical" href={canonical} />
     <link rel="alternate" type="application/rss+xml" title="bordumb writing" href="/rss.xml" />
     <meta property="og:type" content={article ? "article" : "website"} />
+    <meta property="og:site_name" content="bordumb" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     <meta property="og:image" content={socialImage} />
+    <meta property="og:image:secure_url" content={socialImage} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={socialImageAlt} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={socialImage} />
+    <meta name="twitter:image:alt" content={socialImageAlt} />
     <script is:inline>
       (() => {
         const saved = localStorage.getItem("theme");

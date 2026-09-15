@@ -17,7 +17,11 @@ const { tag, posts } = Astro.props;
 const label = tagLabel(tag);
 ---
 
-<BaseLayout title={`${label} writing — bordumb`} description={`Writing filed under ${label}.`}>
+<BaseLayout
+  title={`${label} writing — bordumb`}
+  description={`Writing filed under ${label}.`}
+  socialTitle={label}
+>
   <header class="tag-header page-shell">
     <a href="/blog">Writing / Topics</a>
     <h1>{label}</h1>

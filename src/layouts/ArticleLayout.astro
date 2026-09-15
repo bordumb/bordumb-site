@@ -11,6 +11,7 @@ const toc = headings.filter((heading: { depth: number }) => heading.depth === 2)
 <BaseLayout
   title={`${frontmatter.title} — bordumb`}
   description={frontmatter.description}
+  socialTitle={frontmatter.title}
   article={true}
 >
   <article>
