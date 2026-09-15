@@ -35,6 +35,9 @@ const socialImageAlt = `${socialTitle} — bordumb`;
     <meta name="theme-color" content="#f4f2ec" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#111310" media="(prefers-color-scheme: dark)" />
     <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/icon.png" type="image/png" sizes="512x512" />
+    <link rel="apple-touch-icon" href="/icon.png" sizes="512x512" />
+    <link rel="image_src" href={socialImage} />
     <link rel="alternate" type="application/rss+xml" title="bordumb writing" href="/rss.xml" />
     <meta property="og:type" content={article ? "article" : "website"} />
     <meta property="og:site_name" content="bordumb" />
@@ -42,6 +45,7 @@ const socialImageAlt = `${socialTitle} — bordumb`;
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     <meta property="og:image" content={socialImage} />
+    <meta property="og:image:url" content={socialImage} />
     <meta property="og:image:secure_url" content={socialImage} />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
@@ -51,7 +55,9 @@ const socialImageAlt = `${socialTitle} — bordumb`;
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={socialImage} />
+    <meta name="twitter:image:src" content={socialImage} />
     <meta name="twitter:image:alt" content={socialImageAlt} />
+    <meta itemprop="image" content={socialImage} />
     <script is:inline>
       (() => {
         const saved = localStorage.getItem("theme");

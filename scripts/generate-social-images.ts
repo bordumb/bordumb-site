@@ -135,6 +135,29 @@ function renderCard(
     </svg>`;
 }
 
+function renderIcon(serifFont: string): string {
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+      <defs>
+        <font-face font-family="Social Serif">
+          <font-face-src><font-face-uri href="data:font/woff2;base64,${serifFont}" /></font-face-src>
+        </font-face>
+        <radialGradient id="wash" cx="86%" cy="12%" r="76%">
+          <stop offset="0" stop-color="#1d5e54" stop-opacity="0.12" />
+          <stop offset="1" stop-color="#1d5e54" stop-opacity="0" />
+        </radialGradient>
+      </defs>
+      <rect width="512" height="512" rx="84" fill="#f4f2ec" />
+      <rect width="512" height="512" rx="84" fill="url(#wash)" />
+      <g fill="none" stroke="#171815" stroke-opacity="0.1">
+        <circle cx="446" cy="70" r="116" />
+        <circle cx="446" cy="70" r="164" />
+      </g>
+      <circle cx="446" cy="70" r="10" fill="#1d5e54" />
+      <text x="58" y="376" fill="#171815" font-family="Social Serif, serif" font-size="310" font-weight="400" letter-spacing="-12">b</text>
+    </svg>`;
+}
+
 async function blogCards(): Promise<SocialCard[]> {
   const filenames = (await readdir(postsDirectory, { recursive: true }))
     .filter((filename) => /\.(md|mdx)$/.test(filename))
@@ -177,4 +200,10 @@ for (const card of [...staticSocialCards, ...posts]) {
     .toFile(outputPath);
 }
 
-console.log(`Generated ${staticSocialCards.length + posts.length} social images.`);
+await sharp(Buffer.from(renderIcon(serifFont)))
+  .png({ compressionLevel: 9 })
+  .toFile(path.join(projectRoot, "public/icon.png"));
+
+console.log(
+  `Generated ${staticSocialCards.length + posts.length} social images and the site icon.`,
+);
